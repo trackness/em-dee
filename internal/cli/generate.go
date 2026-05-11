@@ -464,7 +464,11 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 			// on its own line. Fprintln always appends \n, so we add one
 			// only when the captured stderr didn't end with one already.
 			if len(runnerStderr) > 0 {
-				cmd.ErrOrStderr().Write(runnerStderr)
+				// Write is best-effort: a failed stderr write means the
+				// caller's pipe is broken and nothing useful we'd print
+				// afterwards would land either. Discard explicitly so
+				// errcheck stays happy without silently hiding it via _.
+				_, _ = cmd.ErrOrStderr().Write(runnerStderr)
 				if runnerStderr[len(runnerStderr)-1] != '\n' {
 					fmt.Fprintln(cmd.ErrOrStderr())
 				}
