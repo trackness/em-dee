@@ -154,8 +154,18 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 		}
 
 		filePath := path.Join(cat.Path, opt.File)
-		if _, err := fs.Stat(fsys, filePath); err != nil {
+		info, err := fs.Stat(fsys, filePath)
+		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: option %q references missing file %s", cat.Path, opt.ID, opt.File))
+		} else if !info.IsDir() && info.Size() == 0 {
+			// Block files are concatenated by render.join with "\n\n"
+			// glue. A zero-byte block would produce a leading "\n\n"
+			// against its neighbour, breaking the §4.4 trailing-
+			// newline contract from the outside. Forbid the input
+			// shape rather than paper over it in the renderer:
+			// "filesystem is the schema" — if the block has no
+			// content, the option shouldn't be in the manifest.
+			errs = append(errs, fmt.Errorf("%s: option %q references empty block file %s (zero bytes)", cat.Path, opt.ID, opt.File))
 		}
 	}
 

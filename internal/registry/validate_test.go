@@ -301,6 +301,18 @@ options:
 			wantSubs: []string{"orphan", "stray.md"},
 		},
 		{
+			// PR #3 review observation 5: a zero-byte block file
+			// would cause render.join to emit a "\n\n" gap with
+			// nothing between, breaking the §4.4 trailing-newline
+			// contract. Pin the rule at the validator so the
+			// renderer doesn't have to defend against it.
+			name: "option file: is zero bytes",
+			mutate: func(m fstest.MapFS) {
+				m["templates/20-infra/docker.md"] = &fstest.MapFile{Data: []byte{}}
+			},
+			wantSubs: []string{"docker.md", "empty", "zero"},
+		},
+		{
 			// M3 (review): the language option `file:` must be
 			// `<opt.ID>/base.md` — pin the invariant that `walk`
 			// silently depends on.

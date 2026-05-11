@@ -594,6 +594,11 @@ fails `task verify` and CI.
 - Every category folder name matches `^[0-9]{2}-[a-z][a-z0-9-]*$`.
 - Every category folder contains exactly one `_index.yaml`.
 - Every `options[].file` exists in the same folder.
+- Every `options[].file` is non-empty (size > 0 bytes). A zero-byte
+  block would produce a `\n\n` gap with no content between when the
+  renderer joins blocks (§4.4), breaking the trailing-newline
+  contract — pin the constraint at the validator so the renderer
+  doesn't have to defend against it.
 - Every `.md` file in a category folder is referenced by some option
   (no orphans). **Exception**: `base.md` directly under
   `templates/10-language/<lang>/` is always rendered but is not
