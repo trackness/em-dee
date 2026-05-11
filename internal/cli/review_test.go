@@ -14,8 +14,8 @@ import (
 )
 
 // stubRunner is a review.Runner that returns canned bytes — lets the
-// generate-level tests drive every §7.5 / §7.6 branch without a real
-// claude binary.
+// generate-level tests drive every exit-code and failure-mode branch
+// without a real claude binary.
 type stubRunner struct {
 	stdout []byte
 	stderr []byte
@@ -116,8 +116,8 @@ func TestGenerate_ReviewOK(t *testing.T) {
 	}
 }
 
-// TestGenerate_ReviewProblemsExits2 asserts the spec §7.5 exit-code
-// rule: verdict:"problems" → exit 2 via the exitCodeError seam.
+// TestGenerate_ReviewProblemsExits2 asserts the exit-code rule:
+// verdict:"problems" → exit 2 via the exitCodeError seam.
 func TestGenerate_ReviewProblemsExits2(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -142,8 +142,8 @@ func TestGenerate_ReviewProblemsExits2(t *testing.T) {
 	}
 }
 
-// TestGenerate_ReviewWarningsExits0 asserts warnings exits 0 (spec
-// §7.5: only problems is non-zero; --strict-review is deferred to v2).
+// TestGenerate_ReviewWarningsExits0 asserts warnings exits 0 (only
+// problems is non-zero; --strict-review is deferred to v2).
 func TestGenerate_ReviewWarningsExits0(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -162,8 +162,8 @@ func TestGenerate_ReviewWarningsExits0(t *testing.T) {
 }
 
 // TestGenerate_ReviewParseFailureExits0 asserts tier 3 (unstructured)
-// renders the raw response and exits 0 (spec §7.5: parse failure is
-// best-effort, exit 0).
+// renders the raw response and exits 0 (parse failure is best-effort,
+// exit 0).
 func TestGenerate_ReviewParseFailureExits0(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -224,8 +224,8 @@ func TestGenerate_ReviewOutTier1WritesParsedJSON(t *testing.T) {
 }
 
 // TestGenerate_ReviewOutTier3WritesSentinel asserts --review-out
-// writes the §7.7 sentinel JSON shape verbatim when parsing falls to
-// tier 3.
+// writes the unstructured sentinel JSON shape verbatim when parsing
+// falls to tier 3.
 func TestGenerate_ReviewOutTier3WritesSentinel(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -266,8 +266,8 @@ func TestGenerate_ReviewOutTier3WritesSentinel(t *testing.T) {
 	}
 }
 
-// TestGenerate_MissingClaudePrintsNote asserts the spec §7.6 "claude
-// not on PATH" failure mode: print a note on stderr, exit 0.
+// TestGenerate_MissingClaudePrintsNote asserts the "claude not on
+// PATH" failure mode: print a note on stderr, exit 0.
 func TestGenerate_MissingClaudePrintsNote(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -286,8 +286,8 @@ func TestGenerate_MissingClaudePrintsNote(t *testing.T) {
 	}
 }
 
-// TestGenerate_ReviewTimeoutPrintsNote asserts the spec §7.6 timeout
-// failure mode: print a note, exit 0.
+// TestGenerate_ReviewTimeoutPrintsNote asserts the timeout failure
+// mode: print a note, exit 0.
 func TestGenerate_ReviewTimeoutPrintsNote(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -306,9 +306,9 @@ func TestGenerate_ReviewTimeoutPrintsNote(t *testing.T) {
 	}
 }
 
-// TestGenerate_ReviewNonZeroExitPrintsStderr asserts the spec §7.6
-// non-zero exit failure mode: print stderr verbatim under a failure
-// header, exit 0.
+// TestGenerate_ReviewNonZeroExitPrintsStderr asserts the non-zero
+// exit failure mode: print stderr verbatim under a failure header,
+// exit 0.
 func TestGenerate_ReviewNonZeroExitPrintsStderr(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()

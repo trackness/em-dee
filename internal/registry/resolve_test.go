@@ -39,7 +39,7 @@ func TestResolveSelection_MultiPickFromSlice(t *testing.T) {
 
 	reg := testRegistry()
 	// Input order is reverse of registry order; output must
-	// normalize to registry order (spec §4.4 determinism).
+	// normalize to registry order (determinism rule).
 	in := map[string]any{
 		"language": "python",
 		"infra":    []string{"kubernetes", "docker"},
@@ -61,7 +61,7 @@ func TestResolveSelection_MultiPickFromSlice(t *testing.T) {
 
 // TestResolveSelection_MultiPickFromCSV: cobra delivers multi-pick
 // flags as comma-separated strings when we use plain String flags
-// (see plan §3.4 tradeoff). The resolver accepts both forms.
+// (see plan Task 3.4 tradeoff). The resolver accepts both forms.
 func TestResolveSelection_MultiPickFromCSV(t *testing.T) {
 	t.Parallel()
 
@@ -260,8 +260,8 @@ func TestResolveSelection_RequiredOmitted(t *testing.T) {
 }
 
 // TestResolveSelection_MultiPickDeterministicOrder: locks in the
-// registry-declaration ordering rule from spec §4.4 by passing
-// inputs in many permutations and asserting one canonical output.
+// registry-declaration ordering rule by passing inputs in many
+// permutations and asserting one canonical output.
 func TestResolveSelection_MultiPickDeterministicOrder(t *testing.T) {
 	t.Parallel()
 

@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// TestExecRunner_TimeoutKillsProcessGroup asserts spec §7.6's
-// "kill the process group" semantics: when the timeout fires, a child
-// spawned by the `claude` stub (a grandchild of the runner) is also
+// TestExecRunner_TimeoutKillsProcessGroup asserts the "kill the
+// process group" semantics: when the timeout fires, a child spawned
+// by the `claude` stub (a grandchild of the runner) is also
 // terminated, not left orphaned.
 //
 // Strategy: the stub script forks a long-running `sleep` in the
@@ -38,7 +38,7 @@ func TestExecRunner_TimeoutKillsProcessGroup(t *testing.T) {
 	dir := t.TempDir()
 	// Stub: spawn a long sleep in the background (inheriting stdout),
 	// then sleep ourselves so the runner's timeout has something to kill.
-	// The background sleep is the grandchild that leaks without §7.6's
+	// The background sleep is the grandchild that leaks without the
 	// process-group kill.
 	body := "#!/bin/sh\n" +
 		sleepPath + " 30 &\n" +

@@ -9,8 +9,8 @@ import (
 // ApplyDefaults must handle: single-pick with default, single-pick
 // without default, multi-pick with default, multi-pick without
 // default, language with sub-categories, and a synthetic required-
-// with-default category (forward-compat per spec §8.3 — not in v1
-// catalog but part of the contract).
+// with-default category (forward-compat — not in v1 catalog but part
+// of the contract).
 func testRegistry() *Registry {
 	return &Registry{
 		Categories: []*Category{
@@ -163,7 +163,7 @@ func TestApplyDefaults_UnsetNoDefaultStaysUnset(t *testing.T) {
 
 // TestApplyDefaults_RequiredWithDefault: a required category with a
 // default gets the default in non-interactive mode. (v1 catalog has
-// none; this exercises the forward-compat branch per spec §8.3.)
+// none; this exercises the forward-compat branch.)
 func TestApplyDefaults_RequiredWithDefault(t *testing.T) {
 	t.Parallel()
 
@@ -200,9 +200,9 @@ func TestApplyDefaults_NonDestructive(t *testing.T) {
 
 // TestApplyDefaults_NilPointerInMapTreatedAsUnset: a key explicitly
 // present with a nil *Value must be treated the same as map-absent
-// (= "unset" per spec §3.3 and the Value docstring). Pins the
-// resolution to H1 from the Phase 1 review: nil pointer is the
-// canonical "unset" predicate, not map-key-presence.
+// (= "unset", per the Value docstring). Pins the resolution to H1
+// from the Phase 1 review: nil pointer is the canonical "unset"
+// predicate, not map-key-presence.
 func TestApplyDefaults_NilPointerInMapTreatedAsUnset(t *testing.T) {
 	t.Parallel()
 

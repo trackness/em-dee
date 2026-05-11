@@ -58,7 +58,7 @@ func TestVerifyChecksum(t *testing.T) {
 	if err := verifyChecksum(good, "file.tar.gz", data); err != nil {
 		t.Errorf("matching checksum should not error; got %v", err)
 	}
-	// Mismatch case — spec §12.6 mandates abort on mismatch.
+	// Mismatch case — verification must abort on mismatch.
 	bad := map[string]string{"file.tar.gz": "0000000000000000000000000000000000000000000000000000000000000000"}
 	if err := verifyChecksum(bad, "file.tar.gz", data); err == nil {
 		t.Errorf("mismatched checksum should error")
@@ -219,7 +219,7 @@ func TestRunUpdateInstall_Success(t *testing.T) {
 func TestRunUpdateInstall_ChecksumMismatch(t *testing.T) {
 	archive := makeTarGz(t, "em-dee", []byte("real binary"))
 	// Override checksums.txt so the lookup matches by name but the
-	// hash differs from the archive's actual SHA256 (spec §12.6).
+	// hash differs from the archive's actual SHA256.
 	bogus := []byte("0000000000000000000000000000000000000000000000000000000000000000  em-dee_linux_amd64.tar.gz\n")
 	fr := newFakeRelease(t, "v1.3.0", "em-dee_linux_amd64.tar.gz", archive, bogus)
 
@@ -344,7 +344,7 @@ func TestRunUpdateInstall_PermissionDenied(t *testing.T) {
 		t.Errorf("expected error on permission denied")
 	}
 	if !strings.Contains(strings.ToLower(result.message), "sudo") {
-		t.Errorf("permission error should suggest sudo per spec §12.6; got %q", result.message)
+		t.Errorf("permission error should suggest sudo; got %q", result.message)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestRunUpdateInstall_PermissionDenied(t *testing.T) {
 // install pipeline runs through `runUpdateInstall` and hits the
 // network failure mode — proving cobra → RunE → runUpdateInstall is
 // wired correctly and that the updater stub does NOT get called when
-// the metadata fetch fails (spec §12.6 network failure mode).
+// the metadata fetch fails (network failure mode).
 func TestUpdate_LiveCommandInstallNetworkFailure(t *testing.T) {
 	stubApplied := false
 	stub := updaterFunc(func(b []byte) error {
@@ -388,9 +388,9 @@ func TestUpdate_LiveCommandInstallNetworkFailure(t *testing.T) {
 
 // TestRunUpdateInstall_RateLimited verifies that a 403 from the
 // GitHub API surfaces the user-actionable GITHUB_TOKEN hint on the
-// install path (spec §12.6). Previously the install path collapsed
-// all non-200 responses into a generic "github api returned 403", so
-// the hint that --check produces was lost — see PR #7 review item H1.
+// install path. Previously the install path collapsed all non-200
+// responses into a generic "github api returned 403", so the hint
+// that --check produces was lost — see PR #7 review item H1.
 func TestRunUpdateInstall_RateLimited(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
@@ -426,7 +426,7 @@ func TestRunUpdateInstall_RateLimited(t *testing.T) {
 
 // TestRunUpdateInstall_NoReleaseYet verifies that a 404 from the
 // GitHub API surfaces the "no release found yet" message on the
-// install path, mirroring --check (spec §12.6, PR #7 review item H1).
+// install path, mirroring --check (PR #7 review item H1).
 func TestRunUpdateInstall_NoReleaseYet(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
@@ -462,8 +462,8 @@ func TestRunUpdateInstall_NoReleaseYet(t *testing.T) {
 
 // TestUpdate_LiveCommandInstallPackageManagerShortCircuit verifies the
 // install path refuses to run when the binary was installed via a
-// package manager (spec §12.6). Cobra → RunE → runUpdateInstall →
-// short-circuit before any network call.
+// package manager. Cobra → RunE → runUpdateInstall → short-circuit
+// before any network call.
 func TestUpdate_LiveCommandInstallPackageManagerShortCircuit(t *testing.T) {
 	stubApplied := false
 	stub := updaterFunc(func(b []byte) error {

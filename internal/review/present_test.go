@@ -123,9 +123,10 @@ func TestPresent_ProblemsVerdict(t *testing.T) {
 	}
 }
 
-// TestPresent_UnstructuredRendersRawUnderHeader asserts the §7.7
-// sentinel path: an unstructured verdict carries the raw text under a
-// `review (unstructured)` header, no Section-format issue list.
+// TestPresent_UnstructuredRendersRawUnderHeader asserts the
+// unstructured sentinel path: an unstructured verdict carries the raw
+// text under a `review (unstructured)` header, no Section-format
+// issue list.
 func TestPresent_UnstructuredRendersRawUnderHeader(t *testing.T) {
 	t.Parallel()
 	res := ReviewResult{
@@ -149,7 +150,7 @@ func TestPresent_UnstructuredRendersRawUnderHeader(t *testing.T) {
 	}
 }
 
-// TestPresent_LongLocationTruncated asserts the §7.4 truncation rule:
+// TestPresent_LongLocationTruncated asserts the truncation rule:
 // `location` longer than 60 columns gets truncated to 57 + "...".
 func TestPresent_LongLocationTruncated(t *testing.T) {
 	t.Parallel()
@@ -210,9 +211,8 @@ func TestPresent_ShortLocationNotTruncated(t *testing.T) {
 }
 
 // TestPresent_FallbackWidth asserts that termWidth=0 picks the 100-col
-// fallback documented in spec §7.4. We exercise it indirectly: long
-// content gets wrapped *somewhere*, and the wrap column is the
-// fallback when termWidth is 0.
+// fallback. We exercise it indirectly: long content gets wrapped
+// *somewhere*, and the wrap column is the fallback when termWidth is 0.
 func TestPresent_FallbackWidth(t *testing.T) {
 	t.Parallel()
 	// An issue text longer than 100 cols — under the fallback it must

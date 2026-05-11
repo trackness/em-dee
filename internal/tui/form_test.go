@@ -25,7 +25,7 @@ func validFixture(t *testing.T) *registry.Registry {
 // TestBuildLanguageForm_ConstructsForm asserts the form-1 builder
 // returns a non-nil form for a registry with a language category that
 // has options. The Run path is exercised manually (live TTY) and not
-// unit-tested per spec §11.
+// unit-tested.
 func TestBuildLanguageForm_ConstructsForm(t *testing.T) {
 	t.Parallel()
 
