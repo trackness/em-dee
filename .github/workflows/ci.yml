@@ -22,7 +22,9 @@ permissions:
 # Cancel any superseded runs on the same ref so a force-push doesn't
 # leave stale runners burning compute.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # ${{ github.workflow }} already evaluates to "CI" here — no extra
+  # prefix needed for uniqueness vs. the release workflow.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

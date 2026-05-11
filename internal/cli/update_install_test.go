@@ -137,7 +137,6 @@ func TestExpectedAssetName(t *testing.T) {
 // fakeRelease wires an httptest.Server that serves a GitHub-style
 // /releases/latest payload and the archive + checksums assets.
 type fakeRelease struct {
-	t         *testing.T
 	tag       string
 	archive   []byte
 	assetName string
@@ -147,7 +146,7 @@ type fakeRelease struct {
 
 func newFakeRelease(t *testing.T, tag, assetName string, archive []byte, overrideChecksums []byte) *fakeRelease {
 	t.Helper()
-	fr := &fakeRelease{t: t, tag: tag, archive: archive, assetName: assetName, checksums: overrideChecksums}
+	fr := &fakeRelease{tag: tag, archive: archive, assetName: assetName, checksums: overrideChecksums}
 	mux := http.NewServeMux()
 	// Pre-build the checksums.txt for the asset (unless an override is
 	// supplied — used by the mismatch test).

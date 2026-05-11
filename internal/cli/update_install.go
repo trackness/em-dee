@@ -131,6 +131,16 @@ func findAsset(payload releasePayload, name string) (releaseAsset, error) {
 // parseChecksums reads a `checksums.txt` produced by goreleaser
 // (`sha256sum`-compatible: "<hex>  <filename>\n") into a filename → hex
 // map. Blank lines and leading/trailing whitespace are tolerated.
+//
+// Filenames are split on whitespace via strings.Fields, so any line
+// whose filename contains internal whitespace would split into 3+
+// tokens and be silently dropped. This is safe in practice because
+// goreleaser's archive name_template (em-dee_<os>_<arch>) cannot
+// produce filenames with whitespace, and checksums.txt is produced
+// entirely by goreleaser. If a future change to name_template ever
+// introduces spaces, this parser would need to switch to a
+// first-gap-only split.
+//
 // Lines without exactly two whitespace-separated fields are skipped
 // (defensive — the file shouldn't have them, but we'd rather drop a
 // malformed line than fail the whole parse).
@@ -178,14 +188,10 @@ func verifyChecksum(checksums map[string]string, name string, data []byte) error
 // The binary inside the archive is named `em-dee` on unix and
 // `em-dee.exe` on windows (goreleaser's default for binary names).
 func extractBinary(archive []byte, goos string) ([]byte, error) {
-	binaryName := "em-dee"
 	if goos == "windows" {
-		binaryName = "em-dee.exe"
+		return extractZipMember(archive, "em-dee.exe")
 	}
-	if goos == "windows" {
-		return extractZipMember(archive, binaryName)
-	}
-	return extractTarGzMember(archive, binaryName)
+	return extractTarGzMember(archive, "em-dee")
 }
 
 // extractTarGzMember scans a gzip-compressed tar archive for a regular
