@@ -754,13 +754,13 @@ soft-convention, not a hard part of the spec.
 
 ## 11. Testing strategy
 
-| Package | Test types |
-|---------|-----------|
-| `internal/registry` | parse correctness, validation rules (each rule has its own test), `ApplyDefaults` behaviour |
-| `internal/render` | golden fixture tests; one per major scenario |
-| `internal/review` | JSON parse variants (clean, fenced, with preamble, malformed); failure-mode tests with a stub `claude` binary or injected interface |
-| `internal/cli` | cobra command wiring tests using `cmd.SetArgs(...)` and capturing output |
-| `internal/tui` | smoke test that constructs a form for each language without panicking; full TUI flow is not unit-tested |
+| Package             | Test types                                                                                                                          |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `internal/registry` | parse correctness, validation rules (each rule has its own test), `ApplyDefaults` behaviour                                         |
+| `internal/render`   | golden fixture tests; one per major scenario                                                                                        |
+| `internal/review`   | JSON parse variants (clean, fenced, with preamble, malformed); failure-mode tests with a stub `claude` binary or injected interface |
+| `internal/cli`      | cobra command wiring tests using `cmd.SetArgs(...)` and capturing output                                                            |
+| `internal/tui`      | smoke test that constructs a form for each language without panicking; full TUI flow is not unit-tested                             |
 
 The `review` package's external dependency (`claude` CLI) is abstracted
 behind an interface so tests can inject a fake. The default
@@ -937,12 +937,12 @@ this is what we start with):
 
 ### 13.1 Top-level categories
 
-| Prefix | Category | Pick | Required | Default | Options |
-| --- | --- | --- | --- | --- | --- |
-| `10-` | `language` | single | yes | — | `go`, `python`, `typescript-node`, `rust` |
-| `20-` | `infra` | multi | no | `[docker]` | `docker`, `kubernetes`, `terraform` |
-| `30-` | `ci` | multi | no | `[github-actions]` | `github-actions`, `gitlab-ci` |
-| `40-` | `tooling` | multi | no | `[pre-commit]` | `pre-commit`, `mise`, `taskfile`, `makefile` |
+| Prefix | Category   | Pick   | Required | Default            | Options                                      |
+|--------|------------|--------|----------|--------------------|----------------------------------------------|
+| `10-`  | `language` | single | yes      | —                  | `go`, `python`, `typescript-node`, `rust`    |
+| `20-`  | `infra`    | multi  | no       | `[docker]`         | `docker`, `kubernetes`, `terraform`          |
+| `30-`  | `ci`       | multi  | no       | `[github-actions]` | `github-actions`, `gitlab-ci`                |
+| `40-`  | `tooling`  | multi  | no       | `[pre-commit]`     | `pre-commit`, `mise`, `taskfile`, `makefile` |
 
 ### 13.2 Per-language nested categories
 
@@ -952,36 +952,36 @@ Each has its own `_index.yaml` under
 
 **Go**
 
-| Prefix | Category | Default | Options |
-| --- | --- | --- | --- |
-| `10-` | `framework` | `stdlib-net-http` | `stdlib-net-http`, `gin`, `echo` |
-| `20-` | `logging` | `slog` | `slog`, `zap` |
-| `30-` | `testing` | `go-test` | `go-test` |
+| Prefix | Category    | Default           | Options                          |
+|--------|-------------|-------------------|----------------------------------|
+| `10-`  | `framework` | `stdlib-net-http` | `stdlib-net-http`, `gin`, `echo` |
+| `20-`  | `logging`   | `slog`            | `slog`, `zap`                    |
+| `30-`  | `testing`   | `go-test`         | `go-test`                        |
 
 **Python**
 
-| Prefix | Category | Default | Options |
-| --- | --- | --- | --- |
-| `10-` | `framework` | `fastapi` | `fastapi`, `django`, `flask` |
-| `20-` | `logging` | `loguru` | `stdlib`, `loguru`, `structlog` |
-| `30-` | `testing` | `pytest` | `pytest` |
-| `40-` | `deps` | `uv` | `uv`, `poetry`, `pip-tools` |
+| Prefix | Category    | Default   | Options                         |
+|--------|-------------|-----------|---------------------------------|
+| `10-`  | `framework` | `fastapi` | `fastapi`, `django`, `flask`    |
+| `20-`  | `logging`   | `loguru`  | `stdlib`, `loguru`, `structlog` |
+| `30-`  | `testing`   | `pytest`  | `pytest`                        |
+| `40-`  | `deps`      | `uv`      | `uv`, `poetry`, `pip-tools`     |
 
 **TypeScript (Node)**
 
-| Prefix | Category | Default | Options |
-| --- | --- | --- | --- |
-| `10-` | `framework` | `express` | `express`, `fastify`, `hono` |
-| `20-` | `logging` | `pino` | `pino`, `winston` |
-| `30-` | `testing` | `vitest` | `vitest`, `jest` |
+| Prefix | Category    | Default   | Options                      |
+|--------|-------------|-----------|------------------------------|
+| `10-`  | `framework` | `express` | `express`, `fastify`, `hono` |
+| `20-`  | `logging`   | `pino`    | `pino`, `winston`            |
+| `30-`  | `testing`   | `vitest`  | `vitest`, `jest`             |
 
 **Rust**
 
-| Prefix | Category | Default | Options |
-| --- | --- | --- | --- |
-| `10-` | `framework` | `axum` | `axum`, `actix-web` |
-| `20-` | `logging` | `tracing` | `tracing`, `log` |
-| `30-` | `testing` | `cargo-test` | `cargo-test` |
+| Prefix | Category    | Default      | Options             |
+|--------|-------------|--------------|---------------------|
+| `10-`  | `framework` | `axum`       | `axum`, `actix-web` |
+| `20-`  | `logging`   | `tracing`    | `tracing`, `log`    |
+| `30-`  | `testing`   | `cargo-test` | `cargo-test`        |
 
 The block *content* (the actual `.md` text per option) is to be drafted
 during implementation, informed by the user's preferences as the catalog
