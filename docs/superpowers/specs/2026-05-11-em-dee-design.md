@@ -606,6 +606,11 @@ fails `task verify` and CI.
 
 - Every category folder name matches `^[0-9]{2}-[a-z][a-z0-9-]*$`.
 - Every category folder contains exactly one `_index.yaml`.
+- Every `options[].file` is a non-empty string. An empty `file:`
+  joins back to the category directory and `fs.Stat` returns it as
+  a directory rather than ErrNotExist, so the missing-file rule
+  below would not fire; pin the input shape with its own rule so
+  the offending option is named.
 - Every `options[].file` exists in the same folder.
 - Every `options[].file` is non-empty (size > 0 bytes). A zero-byte
   block would produce a `\n\n` gap with no content between when the

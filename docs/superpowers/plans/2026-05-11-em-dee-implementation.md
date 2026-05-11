@@ -242,6 +242,9 @@ manifest hygiene already requires the schema to be exact.
   substring. Cover every rule in §9.1:
   - Bad folder name pattern.
   - Missing `_index.yaml`.
+  - `options[].file` is the empty string (separate row from the
+    on-disk missing-file check; an empty path resolves to the
+    category directory and silently passes fs.Stat).
   - `options[].file` doesn't exist on disk.
   - Orphan `.md` (except `base.md` under a language).
   - Language sub-folder missing `base.md`.
