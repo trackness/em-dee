@@ -1,7 +1,7 @@
 # Multi-pick determinism: infra is entered in reverse manifest order
 # ([kubernetes, docker]). The rendered output MUST list them in
 # manifest declaration order (docker then kubernetes) — locks in
-# the §4.4 "manifest order regardless of input order" rule from the
+# the "manifest order regardless of input order" rule from the
 # golden side, i.e. end-to-end via ResolveSelection → Render. The
 # renderer's own ordering invariant (independent of ResolveSelection's
 # normalisation) is exercised separately by TestRender_MultiPickDeterminism;
