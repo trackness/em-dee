@@ -1,0 +1,13 @@
+display_name: "Go logging"
+pick: single
+required: false
+default: slog
+options:
+  - id: slog
+    display_name: "log/slog (stdlib)"
+    description: "Standard library structured logging."
+    file: slog.md
+  - id: zap
+    display_name: "Zap"
+    description: "Uber's Zap structured logger."
+    file: zap.md

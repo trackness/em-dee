@@ -1,0 +1,13 @@
+display_name: "Rust logging"
+pick: single
+required: false
+default: tracing
+options:
+  - id: tracing
+    display_name: "tracing"
+    description: "tracing instrumentation framework."
+    file: tracing.md
+  - id: log
+    display_name: "log"
+    description: "log lightweight logging facade."
+    file: log.md

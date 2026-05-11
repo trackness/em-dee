@@ -1,0 +1,20 @@
+display_name: "Language"
+pick: single
+required: true
+options:
+  - id: go
+    display_name: "Go"
+    description: "Go (golang) projects."
+    file: go/base.md
+  - id: python
+    display_name: "Python"
+    description: "Python projects."
+    file: python/base.md
+  - id: typescript-node
+    display_name: "TypeScript (Node)"
+    description: "TypeScript projects targeting Node.js."
+    file: typescript-node/base.md
+  - id: rust
+    display_name: "Rust"
+    description: "Rust projects."
+    file: rust/base.md

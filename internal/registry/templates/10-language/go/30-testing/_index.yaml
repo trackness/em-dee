@@ -1,0 +1,9 @@
+display_name: "Go testing"
+pick: single
+required: false
+default: go-test
+options:
+  - id: go-test
+    display_name: "go test (stdlib)"
+    description: "Standard library go test framework."
+    file: go-test.md

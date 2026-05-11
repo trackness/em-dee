@@ -162,7 +162,9 @@ for what's complete. Use `git log --oneline origin/main` and the
 plan together to orient.
 
 Note: the templates filesystem at `internal/registry/templates/`
-ships with a `.gitkeep` only until Phase 7 lands the v1 catalog.
-The render-package tests use a separate fixture tree at
+holds the v1 catalog scaffold from Phase 7.1 — every option's `.md`
+block carries an HTML `TODO` marker pointing at spec §13 until
+Phase 7.2 lands finalised content per language. The render-package
+tests use a separate fixture tree at
 `internal/render/testdata/templates/` so they're independent of
 catalog content drift.

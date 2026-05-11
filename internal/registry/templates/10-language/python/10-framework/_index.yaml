@@ -1,0 +1,17 @@
+display_name: "Python framework"
+pick: single
+required: false
+default: fastapi
+options:
+  - id: fastapi
+    display_name: "FastAPI"
+    description: "FastAPI web framework."
+    file: fastapi.md
+  - id: django
+    display_name: "Django"
+    description: "Django web framework."
+    file: django.md
+  - id: flask
+    display_name: "Flask"
+    description: "Flask web framework."
+    file: flask.md

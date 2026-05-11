@@ -7,10 +7,15 @@ import (
 	"testing/fstest"
 )
 
-// TestLoad_EmptyEmbedded asserts the embedded production templates
-// filesystem (currently only `.gitkeep`) loads to an empty Registry
-// without error. This is the Task 1.2 verification step.
-func TestLoad_EmptyEmbedded(t *testing.T) {
+// TestLoad_Embedded asserts the embedded production templates
+// filesystem loads cleanly and surfaces the v1 catalog's top-level
+// categories in render order. Originally written (in Task 1.2) to
+// assert the placeholder `.gitkeep`-only tree loaded to an empty
+// Registry; updated in Task 7.1 once the v1 scaffolding landed. The
+// purpose is unchanged — the production `//go:embed` directive
+// resolves and parses without error — only the expected shape
+// migrated from "empty" to "v1 catalog top level".
+func TestLoad_Embedded(t *testing.T) {
 	t.Parallel()
 
 	reg, err := Load()
@@ -20,8 +25,14 @@ func TestLoad_EmptyEmbedded(t *testing.T) {
 	if reg == nil {
 		t.Fatal("Load() returned nil registry")
 	}
-	if len(reg.Categories) != 0 {
-		t.Fatalf("expected empty Registry, got %d categories", len(reg.Categories))
+	wantIDs := []string{"language", "infra", "ci", "tooling"}
+	if got := len(reg.Categories); got != len(wantIDs) {
+		t.Fatalf("expected %d top-level categories, got %d", len(wantIDs), got)
+	}
+	for i, want := range wantIDs {
+		if got := reg.Categories[i].ID; got != want {
+			t.Errorf("Categories[%d].ID = %q, want %q", i, got, want)
+		}
 	}
 }
 
