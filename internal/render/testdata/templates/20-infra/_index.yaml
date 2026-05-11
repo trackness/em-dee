@@ -1,0 +1,13 @@
+display_name: "Infrastructure"
+pick: multi
+required: false
+default: [docker]
+options:
+  - id: docker
+    display_name: "Docker"
+    description: "Docker"
+    file: docker.md
+  - id: kubernetes
+    display_name: "Kubernetes"
+    description: "Kubernetes"
+    file: kubernetes.md

@@ -1,0 +1,3 @@
+### FastAPI
+
+FastAPI framework block.
