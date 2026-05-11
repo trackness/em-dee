@@ -184,6 +184,16 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 			errs = append(errs, fmt.Errorf("%s: duplicate option id %q", cat.Path, opt.ID))
 		}
 		seenID[opt.ID] = true
+		// Pin `file:` as non-empty here rather than relying on the
+		// downstream missing-file check to fire indirectly: an empty
+		// path joins to the category's own directory, which fs.Stat
+		// returns as a directory rather than a missing entry. The
+		// resulting error path (the category folder itself) is
+		// confusing, so reject the empty input shape with a clear
+		// rule-named message instead.
+		if len(opt.File) == 0 {
+			errs = append(errs, fmt.Errorf("%s: option %q: file must be non-empty", cat.Path, opt.ID))
+		}
 		if !strings.Contains(opt.File, "/") {
 			// Flat-category reference: pin against the orphan scan.
 			seenFile[opt.File] = true
