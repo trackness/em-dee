@@ -1,0 +1,6 @@
+# Multi-pick determinism: infra is entered in reverse manifest order
+# ([kubernetes, docker]). The rendered output MUST list them in
+# manifest declaration order (docker then kubernetes) — locks in
+# the §4.4 determinism rule from the golden side.
+language: python
+infra: [kubernetes, docker]
