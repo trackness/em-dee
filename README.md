@@ -16,7 +16,7 @@ Three install paths. Pick whichever fits your environment.
 go install github.com/trackness/em-dee/cmd/em-dee@latest
 ```
 
-**Direct download** (recommended for non-Go users). Copy-paste the snippet
+**Direct download** — no Go toolchain required. Copy-paste the snippet
 for your platform:
 
 *macOS (Apple Silicon)*
@@ -55,8 +55,8 @@ you want parity. The trailing `Remove-Item` cleans up the downloaded
 Invoke-WebRequest -Uri https://github.com/trackness/em-dee/releases/latest/download/em-dee_windows_amd64.zip -OutFile em-dee.zip; Expand-Archive em-dee.zip -DestinationPath .; Remove-Item em-dee.zip
 ```
 
-**Homebrew** (post-tap-setup; not live until the `trackness/tap`
-formula is published):
+**Homebrew** — post-tap-setup, not live until the `trackness/tap`
+formula is published:
 
 ```sh
 brew install trackness/tap/em-dee
@@ -123,7 +123,7 @@ at `--out`). This is opt-out via `--no-review`. Use
 | `verdict` | string            | One of `ok`, `warnings`, `problems`. The on-disk artifact may also carry `unstructured` as a tier-3 fallback sentinel. |
 | `summary` | string            | One-sentence overall assessment.                                                                                       |
 | `issues`  | array             | Per-issue `{severity, location, issue, suggestion}` objects. May be empty.                                             |
-| `raw`     | string (optional) | Present only on the tier-3 unstructured-fallback path. Carries the unparsed text.                                      |
+| `raw`     | string            | Emitted only on the tier-3 unstructured-fallback path; carries the unparsed text. Absent from the JSON entirely on tier 1 / tier 2 (not present-but-empty). |
 
 `--review-timeout=<duration>` overrides the default 60s subprocess
 deadline.
@@ -132,13 +132,17 @@ deadline.
 
 - Operating contract: [`CLAUDE.md`](CLAUDE.md)
 
-(em-dee v1 has no env-var configuration — `EM_DEE_*` is reserved but
-unread. All knobs are flags, documented under Usage.)
+(em-dee v1 has no user-facing env-var configuration — `EM_DEE_*` is
+reserved but unread, and all knobs are flags documented under Usage.
+The one env var em-dee does read is `GITHUB_TOKEN`: when set, it's
+forwarded as `Authorization: Bearer` on the GitHub API calls in
+`em-dee update --check` and the `em-dee update` install path, purely
+to raise the unauthenticated rate limit.)
 
 ## Status
 
-v0.1.0 ships with placeholder / TODO content in the catalog. The CLI
-surface, the catalog structure, the review pipeline, and the
+v0.1.0 will ship with placeholder / TODO content in the catalog. The
+CLI surface, the catalog structure, the review pipeline, and the
 release/update mechanism are finalised; only the per-block markdown
 is TODO. Finalised content lands in subsequent releases.
 

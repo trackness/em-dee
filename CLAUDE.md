@@ -151,7 +151,9 @@ tests are the only consumer.
 ## Templates filesystem
 
 `internal/registry/templates/` carries the catalog. Every option's
-`.md` block is a TODO placeholder; finalised content lands per
-language. The render-package tests use a separate fixture tree at
+`.md` block is currently a TODO stub — a TODO HTML comment plus a
+one-line placeholder summary, NOT a zero-byte file (the validator
+rejects those). Finalised content lands per language. The
+render-package tests use a separate fixture tree at
 `internal/render/testdata/templates/` so they're independent of
 catalog content drift.
