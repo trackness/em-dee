@@ -76,18 +76,24 @@ with an optional `raw` field on the tier-3 unstructured-fallback path
 (spec §7.2). `--review-timeout=<duration>` overrides the default 60s
 subprocess deadline.
 
-## Configuration
+## Further reading
 
 - Design spec: [`docs/superpowers/specs/2026-05-11-em-dee-design.md`](docs/superpowers/specs/2026-05-11-em-dee-design.md)
 - Operating contract: [`CLAUDE.md`](CLAUDE.md)
+
+(em-dee v1 has no env-var configuration — `EM_DEE_*` is reserved but
+unread, per spec section 14. All knobs are flags, documented under
+Usage.)
 
 ## Status
 
 v0.1.0 ships with placeholder / TODO content in the catalog — the catalog
 structure is final, but the per-option markdown blocks are stubs pending
-real content drafting. This is intentional per spec §13 to ship the working
-binary against a real release; finalised content lands in subsequent
-releases.
+real content drafting. The CLI surface, the catalog structure, the review
+pipeline, and the release/update mechanism are all finalised in v0.1.0;
+only the per-block markdown is TODO. This is intentional per spec section
+13 to ship the working binary against a real release; finalised content
+lands in subsequent releases.
 
 ## License
 
