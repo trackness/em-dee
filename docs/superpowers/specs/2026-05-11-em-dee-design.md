@@ -134,7 +134,14 @@ em-dee/
   typed `Registry` plus a `Picks` type representing a user's selection.
   `ApplyDefaults(Picks) Picks` is the single source of truth for default
   resolution; both non-interactive flag handling and `--use-defaults`
-  call it.
+  call it. `Picks` is **tri-state per category**: for single-pick,
+  `*string` (nil = unset, empty string = explicitly chosen none,
+  non-empty = chosen option id); for multi-pick, `*[]string` (nil =
+  unset, empty slice = explicitly chosen none, non-empty slice =
+  chosen ids). The distinction between "unset" and "explicit none"
+  matters for default application — `ApplyDefaults` only fills in
+  categories that are `unset` (nil pointer), never categories that are
+  explicitly empty.
 - **`internal/render`** — pure function: `(Registry, Picks) → []byte`.
   No I/O. Concatenates the chosen blocks in render order, separated by
   `\n\n`. Trivial to test against golden fixtures.
@@ -218,6 +225,13 @@ templates/40-tooling/<chosen>.md     [multi: each in _index.yaml order]
 Blocks are separated by `\n\n`. No leading or trailing whitespace
 beyond what's in the blocks themselves.
 
+**Multi-pick determinism**: for any multi-pick category, the chosen
+options are always emitted in `_index.yaml` declaration order,
+regardless of the order the user typed them on the CLI
+(`--infra=kubernetes,docker` and `--infra=docker,kubernetes` produce
+byte-identical output) or selected them in the interactive form. This
+keeps golden fixtures stable across input permutations.
+
 ## 5. CLI surface
 
 ```
@@ -239,8 +253,11 @@ em-dee generate --review-out=r.json # also write review JSON to file
 
 em-dee list                         # human-readable category/option tree
 em-dee list --json                  # machine-readable
-em-dee show language python         # cat one block to stdout
+em-dee show <ref>                   # cat one block to stdout (see below)
 em-dee version
+em-dee version --json
+em-dee update
+em-dee update --check
 ```
 
 ### 5.1 Flag derivation
@@ -253,27 +270,81 @@ em-dee version
   `--framework` meaning different things based on `--language`.
 - Multi-pick categories accept comma-separated option ids.
 - Unknown option ids are a hard error.
-- Required categories without a value in non-interactive mode are a hard
-  error.
-- Defaults apply when a flag is *omitted*. Explicit empty
-  (`--python.logging=`) selects "none chosen" for optional categories;
-  for required categories it is an error.
+
+**Flag state mapping into `Picks` (tri-state per §3.3)**:
+
+- Flag **omitted** from the command line → category remains `unset`
+  (nil pointer). `ApplyDefaults` may fill it in.
+- Flag **present with a value** (`--python.logging=loguru`) → category
+  is set to the chosen option(s).
+- Flag **present with empty value** (`--python.logging=`) → category
+  is set to "explicitly empty" (the slice/pointer is non-nil but
+  carries no option). For optional categories this writes no block; for
+  required categories it is a hard error.
+
+**`show` reference form**: `em-dee show` takes a single positional
+dotted reference and prints the corresponding block's `.md` content
+to stdout (or errors if the ref doesn't resolve to a leaf option).
+Examples:
+
+- `em-dee show language.python` → `templates/10-language/python/base.md`
+- `em-dee show python.logging.loguru` →
+  `templates/10-language/python/20-logging/loguru.md`
+- `em-dee show infra.docker` → `templates/20-infra/docker.md`
+- `em-dee show go.framework.gin` →
+  `templates/10-language/go/10-framework/gin.md`
+
+The reference grammar is `<segment>(.<segment>)*` where each segment is
+an id (kebab); the resolver walks the registry left-to-right.
+
+**Required category resolution**:
+
+- `required: true` + `default: X` + flag omitted → default `X`
+  satisfies the requirement; no error. (Note: per §9.1, the only
+  required category in v1 — `language` — must not carry a `default`,
+  so this branch is forward-compatibility only.)
+- `required: true` + no `default` + flag omitted → hard error in
+  non-interactive mode.
+- `required: true` + flag present with empty value → hard error.
 
 ### 5.2 Interactive flow
 
-1. **Phase 1 — language**: a huh form with one `huh.Group` containing
-   the language `huh.Select`. Required.
-2. **Phase 2 — rest**: a huh form constructed dynamically from the
+The interactive flow runs **two sequential huh forms** with separate
+`.Run()` calls. We deliberately do *not* use huh's `OptionsFunc` /
+dynamic-fields pattern on a single form — instead, the language is
+fully resolved in form 1 before form 2 is constructed. Reasoning:
+form 2's *structure* (which groups exist, what their option sets are)
+depends on the chosen language; constructing it after form 1 returns
+keeps each form's definition trivially testable and avoids huh's
+dynamic-field corner cases.
+
+1. **Form 1 — language**: a single `huh.Form` with one
+   `huh.Group` containing one `huh.Select[string]` for the language.
+   The cursor lands on the first option in `_index.yaml` declaration
+   order; no value is accepted until the user presses Enter. Form 1
+   is `required: true` at the registry level (§4.2 / §9.1), and the
+   huh field enforces a non-empty selection via huh's built-in
+   required-field handling.
+2. **Form 2 — rest**: constructed *after* form 1 returns, using the
    chosen language's subtree plus the cross-cutting categories. One
    `huh.Group` per category, paginated. Defaults pre-populate bound
-   variables before `.Run()` so Enter accepts.
-3. **Confirm**: a final huh confirm screen lists the blocks that will
-   be rendered, in order.
+   variables before `.Run()` so Enter accepts the default. Optional
+   categories without a default present an empty selection state by
+   default.
+3. **Confirm**: a final `huh.Group` with a `huh.Confirm` lists the
+   blocks that will be rendered, in render order (§4.4), and asks for
+   final approval. This group is appended to form 2.
 4. **Existing-file check** (see §6).
 5. **Write the file.**
 6. **Review** (default on; see §7).
 7. **Success line** rendered via lipgloss: `wrote CLAUDE.md (N blocks,
    N.NN KB)` and (if review ran) the review summary block.
+
+**Cancellation**: Ctrl-C / Esc at any point during form 1 or form 2
+aborts the run cleanly. No partial state is written. Back-navigation
+across forms is *not* supported in v1 — if the user picks the wrong
+language in form 1, they must Ctrl-C and re-run. (Within a form, huh's
+own back-navigation between groups works as normal.)
 
 ### 5.3 Non-interactive flow
 
@@ -304,20 +375,42 @@ selected."
 
 ### 7.1 Invocation
 
+em-dee invokes `claude` once per review as a subprocess via
+`os/exec.Command`:
+
 ```
-claude -p --output-format=json
-  (reads the rendered CLAUDE.md content on stdin)
-  (review prompt embedded from internal/review/prompt.md)
+claude -p "<full prompt>" --output-format=json
 ```
 
-The wire-level transport (`--output-format=json`) gives a typed protocol
-envelope from the `claude` CLI, separating "Claude responded" from
-"claude exited non-zero" from "claude timed out."
+Where `<full prompt>` is built in Go by concatenating the embedded
+review prompt template with the rendered CLAUDE.md content, separated
+by a fenced delimiter:
 
-The review prompt is committed in `internal/review/prompt.md` and
-embedded into the binary. It instructs Claude to respond with a single
-JSON object matching the schema below, with no markdown fences and no
-preamble.
+```
+<review prompt template>
+
+---
+
+<file path="CLAUDE.md">
+<rendered CLAUDE.md content>
+</file>
+```
+
+The entire string is passed as a single `-p` argument. **No stdin** —
+the spec does not assume `claude -p` reads its prompt from stdin
+(it accepts the prompt as an argument). Argv length is well below
+ARG_MAX (≥256 KB on Darwin/Linux); a typical generated CLAUDE.md is
+< 10 KB.
+
+The wire-level transport (`--output-format=json`) gives a typed
+protocol envelope from the `claude` CLI, separating "Claude
+responded" from "claude exited non-zero" from "claude timed out."
+
+The review prompt template is committed at
+`internal/review/prompt.md` and embedded into the binary via a
+`//go:embed prompt.md` directive in `internal/review/review.go`. It
+instructs Claude to respond with a single JSON object matching the
+schema below, with no markdown fences and no preamble.
 
 ### 7.2 Response schema
 
@@ -370,11 +463,17 @@ lipgloss-rendered, in this shape:
 Severities color-coded: info=neutral, warning=yellow, error=red.
 Verdict header gets `✓` green, `⚠` yellow, `✗` red.
 
+**Truncation**: section names ("location" field) longer than 60
+columns are truncated to 57 columns + `...`. Issue text and
+suggestions are wrapped (not truncated) to the terminal width
+detected via `golang.org/x/term`, with a fallback of 100 columns
+when the terminal width can't be determined.
+
 ### 7.5 Exit code
 
 - `ok` or `warnings` → exit 0.
-- `problems` → exit non-zero (specific code TBD in plan, suggest 2).
-- Parse failure → exit 0 (review is best-effort).
+- `problems` → exit **2**.
+- Parse failure → exit 0 (review is best-effort; see §7.3 tier 3).
 - The file was always written successfully before review runs; review
   is advisory and the user can always inspect the file themselves.
 
@@ -382,20 +481,33 @@ A `--strict-review` flag making `warnings` also fail is deferred to v2.
 
 ### 7.6 Failure modes
 
-- `claude` not on PATH → print `note: claude CLI not found; skipping
-  review` to stderr; exit 0.
-- `claude -p` exits non-zero → print stderr verbatim under a `claude
-  review failed:` header; exit 0.
-- 60-second timeout on the claude subprocess; on timeout, kill the
-  process group, print `note: claude review timed out after 60s`; exit 0.
-- `--dry-run` skips review entirely (nothing was written).
+- **`claude` not on PATH**: detected via `exec.LookPath("claude")`.
+  On any `LookPath` error (including `exec.ErrNotFound`), print
+  `note: claude CLI not found; skipping review` to stderr and exit 0.
+- **`claude -p` exits non-zero**: print stderr verbatim under a
+  `claude review failed:` header; exit 0. The file was already
+  written; review is best-effort.
+- **Timeout**: 60-second wall-clock default from subprocess start to
+  exit, overridable via `--review-timeout=<duration>`. On timeout,
+  kill the process group, print `note: claude review timed out
+  after <duration>`; exit 0. Per-byte / streaming timeouts are not
+  used in v1.
+- **`--dry-run`** skips review entirely (nothing was written).
+- The `EM_DEE_REVIEW_TIMEOUT` env var is **not** read in v1. Only the
+  flag is honored. (See §14.)
 
 ### 7.7 Review-related flags
 
 - `--review` / `--no-review` — defaults to `--review`.
 - `--review-out=<path>` — write the parsed JSON to disk (for CI and
   tooling). Independent of whether the review is presented on stdout.
-- `--review-timeout=<duration>` — override the 60s default.
+  If parsing reaches tier 3 (unstructured fallback per §7.3), the
+  written JSON is `{"verdict": "unstructured", "summary": "claude
+  review could not be parsed as structured JSON", "raw": "<original
+  text>", "issues": []}` — a sentinel `verdict` value so consumers can
+  branch on this case explicitly.
+- `--review-timeout=<duration>` — override the 60s default. Accepts
+  Go duration syntax (`30s`, `2m`, etc.).
 
 ## 8. Defaults
 
@@ -418,10 +530,15 @@ pure and easily tested.
 
 ### 8.3 Required-with-default
 
-If a category is `required: true` *and* has a `default`, the default
-seeds the interactive picker but the picker still presents the category
-(the user can hit Enter to accept). In non-interactive mode, the default
-satisfies the requirement when the flag is omitted.
+In v1 there is no category that is both `required: true` and carries a
+`default` — the only required category is `language`, and §4.2 / §9.1
+forbid `default` on language. The semantics are nonetheless defined
+for forward compatibility:
+
+- **Interactive**: the default seeds the picker; the user must still
+  hit Enter (or pick a different option). The picker is not skipped.
+- **Non-interactive**: an omitted flag is satisfied by the default;
+  no error. Explicit empty value is a hard error per §5.1.
 
 ### 8.4 `em-dee list` output
 
@@ -433,22 +550,43 @@ option(s) so the user can preview what Enter will give them.
 ### 9.1 Manifest hygiene (runs in `task verify`)
 
 A test in `internal/registry` walks the embedded templates filesystem
-and asserts:
+and asserts each of the following. Validation failure on any rule
+fails `task verify` and CI.
+
+**Folder / file structure:**
 
 - Every category folder name matches `^[0-9]{2}-[a-z][a-z0-9-]*$`.
 - Every category folder contains exactly one `_index.yaml`.
-- Every `_index.yaml` parses and matches the schema.
 - Every `options[].file` exists in the same folder.
 - Every `.md` file in a category folder is referenced by some option
-  (no orphans).
-- Every `id` is unique within its `options` list.
-- Every `default` value references a valid `id`.
-- The language category has no `default` and `required: true`.
+  (no orphans). **Exception**: `base.md` directly under
+  `templates/10-language/<lang>/` is always rendered but is not
+  referenced by any option — the orphan check explicitly excludes
+  these files.
 - Every language sub-folder under `templates/10-language/` contains a
-  `base.md` plus zero or more `NN-<name>/` sub-categories matching the
-  same rules.
+  `base.md` plus zero or more `NN-<name>/` sub-categories matching
+  the same rules.
 
-Validation failure on any of the above fails `task verify` and CI.
+**`_index.yaml` schema:**
+
+- Every `_index.yaml` parses and matches the typed schema.
+- `pick` is exactly `"single"` or `"multi"`.
+- `display_name` is non-empty for the category and for every option.
+- Every option `id` matches `^[a-z][a-z0-9-]*$` (kebab).
+- Every `id` is unique within its `options` list.
+- For `pick: single`: if `default` is present, it is a string
+  referencing a valid option `id`.
+- For `pick: multi`: if `default` is present, it is a list of strings,
+  each referencing a valid option `id`, with no duplicates.
+
+**Category-level invariants:**
+
+- The `language` category (the `_index.yaml` at
+  `templates/10-language/_index.yaml`) has `required: true`, `pick:
+  single`, and no `default`.
+- Every other category has `required: false` in v1. (Forward-compat:
+  the validator allows other categories to be `required: true`, but
+  the catalog must not exercise it in v1.)
 
 ### 9.2 Golden fixtures
 
@@ -464,13 +602,30 @@ Validation failure on any of the above fails `task verify` and CI.
   ci: [github-actions]
   ```
 
+  The dotted keys are the same `<lang-id>.<category-id>` form used by
+  the CLI flags (§5.1). `selection.yaml` is parsed via the same
+  flag-resolution path as CLI flag handling (a shared
+  `registry.ResolveSelection(map[string]any) Picks` helper) — golden
+  fixtures and CLI inputs share one code path, so the two cannot
+  drift.
+
 - `expected.md` — the exact rendered output.
 
 Tests in `internal/render` load every scenario, render, and assert
-byte-equality against `expected.md`. To update a golden, regenerate via
-a `task golden-update` target. At least one fixture per language is
-required; one fixture per major edge case (no optional picks, all
-defaults, every category populated).
+byte-equality against `expected.md`. To update a golden, regenerate
+via a `task golden-update` target.
+
+**Coverage requirements:**
+
+- At least one fixture per *finalised* language (i.e. a language whose
+  option content is no longer TODO). Languages whose blocks are still
+  TODO placeholders are excluded from golden coverage until content
+  is finalised; this avoids constant golden churn during catalog
+  buildout.
+- At least one fixture per major edge case (no optional picks, all
+  defaults, every category populated, multi-pick category with
+  selections entered in reverse manifest order — to lock in the
+  ordering rule from §4.4).
 
 ## 10. Repo conventions for Claude-Code maintenance
 
@@ -493,10 +648,20 @@ before editing. It documents:
   - *Reorder categories*: change the folder's `NN-` prefix.
 - **Naming rules**: kebab ids; folder names `NN-name` with two-digit
   prefix; option `file` field is `<id>.md`.
-- **Anti-patterns**: don't add frontmatter to `.md` files; don't add
-  cross-category constraint rules in code; don't reorder by editing
-  `_index.yaml`; don't add language-specific content to cross-cutting
-  blocks.
+- **Anti-patterns**:
+  - Don't add frontmatter to `.md` files; metadata lives only in
+    `_index.yaml`.
+  - Don't add cross-category constraint rules in code; the picker
+    soft-trusts the user.
+  - Don't reorder by editing `_index.yaml` `options` lists — change
+    the folder's `NN-` prefix, or move options between manifests.
+  - Don't add language-specific content to cross-cutting blocks (no
+    Python-specific Dockerfile lives under `templates/20-infra/`).
+  - **Don't run `task golden-update` to fix a failing test in CI.**
+    Run it only after intentional render-logic or template changes,
+    locally, with the resulting diff inspected before committing.
+    The golden fixtures only catch regressions if they aren't blindly
+    regenerated.
 - **Required commands**: `task verify` before commit; `task build` for
   a local binary.
 
@@ -576,14 +741,18 @@ Triggers on tag push matching `v*`.
 - **Builds**: darwin/arm64, darwin/amd64, linux/arm64, linux/amd64,
   windows/amd64.
 - **ldflags** inject version metadata (see §12.7).
-- **Archives**: `tar.gz` for unix, `zip` for windows. Naming:
-  `em-dee_<version>_<os>_<arch>.<ext>`.
+- **Archives**: `tar.gz` for unix, `zip` for windows. The archive
+  `name_template` is `em-dee_{{ .Os }}_{{ .Arch }}` (omits the
+  version) so that
+  `https://github.com/<owner>/em-dee/releases/latest/download/em-dee_<os>_<arch>.<ext>`
+  resolves to the latest release's asset. The release page still
+  shows the version; only the filename is version-stripped.
 - **Checksums**: SHA256 of every archive, published as
   `checksums.txt`. The self-update path depends on this file existing
   at a predictable URL inside each release.
 - **GitHub Release**: auto-created, with archives + checksums
-  attached. Release notes generated from commit history since the last
-  tag.
+  attached. Release notes generated from commit history since the
+  last tag.
 - **Homebrew tap**: declared in the config but commented out until a
   `homebrew-<owner>-tap` repo exists. Enabling is a one-line edit.
 
@@ -622,20 +791,31 @@ detected and redirected to the appropriate tool.
      `github.com/minio/selfupdate` (or equivalent).
   6. Print `updated <old version> → <new version>`.
 - **`em-dee update --check`** — print whether an update is available,
-  do not install. Exits 0 if up-to-date, 1 if an update exists.
+  do not install. Exit codes: `0` = up-to-date, `1` = update
+  available, `2` = error (network, parse, rate limit, etc.). This
+  three-state convention lets `if em-dee update --check` and
+  scripted comparisons distinguish "stale" from "broken."
 - **`em-dee version --json`** — prints version, commit, date, and
   platform. Used by `update` and by tooling.
 
 **Install-method detection** (best-effort, via the path of the running
-executable):
+executable resolved with `os.Executable`):
 
-- Path under `${GOPATH}/bin/`, `${HOME}/go/bin/`, or `$(go env
-  GOBIN)` → suggest `go install
-  github.com/<owner>/em-dee/cmd/em-dee@latest`; refuse self-update.
-- Path under `/opt/homebrew/`, `/usr/local/Cellar/`,
-  `/home/linuxbrew/.linuxbrew/` → suggest `brew upgrade
-  <owner>/tap/em-dee`; refuse self-update.
-- Anything else → proceed with self-update.
+- *Unix (darwin, linux):*
+  - Path under `${GOPATH}/bin/`, `${HOME}/go/bin/`, or `$(go env
+    GOBIN)` (whichever is non-empty) → suggest `go install
+    github.com/<owner>/em-dee/cmd/em-dee@latest`; refuse self-update.
+  - Path under `/opt/homebrew/`, `/usr/local/Cellar/`,
+    `/home/linuxbrew/.linuxbrew/` → suggest `brew upgrade
+    <owner>/tap/em-dee`; refuse self-update.
+  - Anything else → proceed with self-update.
+- *Windows:*
+  - Path containing `\go\bin\` (covers both `%USERPROFILE%\go\bin\`
+    and `%GOPATH%\bin\` patterns) → suggest `go install ...`; refuse
+    self-update.
+  - Homebrew detection does not apply (Homebrew is not a Windows
+    install path).
+  - Anything else → proceed with self-update.
 
 A `--force` override flag is **deferred to v2**.
 
@@ -714,25 +894,34 @@ compiles and tests pass before content is finalised.
 
 - **Module path**: `github.com/<owner>/em-dee` — owner to be filled in
   before module init.
-- **Binary name**: `em-dee`.
-- **Env var prefix**: `EM_DEE_` (e.g. `EM_DEE_REVIEW_TIMEOUT`,
-  `EM_DEE_OUT`). Reserved for future use; not used in v1.
+- **Binary name**: `em-dee`. The hyphenated form is intentional and
+  matches the project name; `go install
+  github.com/<owner>/em-dee/cmd/em-dee@latest` produces a binary
+  called `em-dee` because Go derives the binary name from the final
+  path segment.
+- **Env vars**: no `EM_DEE_*` env vars are read in v1. All
+  configuration is via flags. If env-var support is added later, the
+  prefix `EM_DEE_` is reserved.
 
 ## 15. Deferred to plan or v2
 
-- Exact `.md` block content per option.
-- `.claude/settings.local.json` hook contents.
+- Exact `.md` block content per option (to be drafted during
+  implementation; see §13).
+- `.claude/settings.local.json` hook contents (soft-convention; see
+  §10.3).
 - Whether to publish a Homebrew tap at first release (tap repo
   `homebrew-<owner>-tap` to be created when enabled).
-- Specific exit code for `verdict == "problems"`.
 - `--strict-review` flag (makes `warnings` also fail).
 - Module owner / GitHub org.
 - License selection.
 - `em-dee update --force` to override install-method detection.
 - GPG / sigstore signature verification on self-update.
+- Back-navigation across forms 1 and 2 in the interactive flow.
+- Env-var configuration (the `EM_DEE_*` prefix is reserved but no
+  env vars are read in v1).
 
 ## 16. Open questions
 
-None at the time of writing that block planning. Anything that surfaces
-during the spec review will be folded back into this document before
-the writing-plans skill is invoked.
+None at the time of writing that block planning. Items the spec
+explicitly defers are listed in §15; anything that surfaces during
+spec review is folded back into the relevant section above.
