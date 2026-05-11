@@ -235,8 +235,11 @@ templates/30-ci/<chosen>.md          [multi: each in _index.yaml order]
 templates/40-tooling/<chosen>.md     [multi: each in _index.yaml order]
 ```
 
-Blocks are separated by `\n\n`. No leading or trailing whitespace
-beyond what's in the blocks themselves.
+Blocks are separated by `\n\n`. The rendered output ends with exactly
+one trailing `\n`. Each block's own trailing newline is stripped
+before joining; the final newline is appended once at the end. Empty
+`Picks` (nothing selected) → zero bytes, not a stray newline. This
+contract is testable and the renderer enforces it.
 
 **Multi-pick determinism**: for any multi-pick category, the chosen
 options are always emitted in `_index.yaml` declaration order,
