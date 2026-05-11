@@ -105,3 +105,34 @@ type Picks struct {
 func NewPicks() Picks {
 	return Picks{Values: map[string]*Value{}}
 }
+
+// FindCategory returns the top-level Category with the given id, or
+// nil if no such category exists. Centralised here so CLI consumers
+// (e.g. internal/cli/show.go's reference resolver) don't have to
+// duplicate the lookup loop locally.
+func (r *Registry) FindCategory(id string) *Category {
+	if r == nil {
+		return nil
+	}
+	for _, cat := range r.Categories {
+		if cat.ID == id {
+			return cat
+		}
+	}
+	return nil
+}
+
+// HasOption reports whether the category has an option with the
+// given id. Centralised here so CLI consumers (e.g. show.go) and the
+// resolver share one implementation.
+func (c *Category) HasOption(id string) bool {
+	if c == nil {
+		return false
+	}
+	for _, opt := range c.Options {
+		if opt.ID == id {
+			return true
+		}
+	}
+	return false
+}

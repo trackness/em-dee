@@ -181,14 +181,11 @@ func asStringList(raw any) ([]string, error) {
 	}
 }
 
-// optionExists reports whether `id` is in `cat.Options`.
+// optionExists is the package-internal alias for Category.HasOption.
+// Kept so existing resolver call sites stay terse; new consumers
+// outside the package use HasOption.
 func optionExists(cat *Category, id string) bool {
-	for _, opt := range cat.Options {
-		if opt.ID == id {
-			return true
-		}
-	}
-	return false
+	return cat.HasOption(id)
 }
 
 // isEmpty reports whether a *Value represents the explicit-none

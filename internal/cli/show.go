@@ -52,6 +52,11 @@ func newShowCmd(opts Options) *cobra.Command {
 // resolveShowRef walks the registry following the dotted-ref grammar
 // and returns the raw bytes of the resolved option's `.md` block.
 // Errors include the full input ref so the user sees what failed.
+//
+// Category/option lookup uses registry.Registry.FindCategory and
+// registry.Category.HasOption — the helpers are shared with the
+// resolver inside the registry package, so the show form and the
+// flag-derived selection form can't drift.
 func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 	segs := strings.Split(ref, ".")
 	if len(segs) < 2 {
@@ -61,11 +66,11 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 	// Form 1: `language.<lang>` — first segment is the literal word
 	// "language" and the registry has a category with id "language".
 	if segs[0] == "language" && len(segs) == 2 {
-		langCat := findCategory(reg, "language")
+		langCat := reg.FindCategory("language")
 		if langCat == nil {
 			return nil, fmt.Errorf("show %s: no `language` category in registry", ref)
 		}
-		if !optionExists(langCat, segs[1]) {
+		if !langCat.HasOption(segs[1]) {
 			return nil, fmt.Errorf("show %s: language %q not found", ref, segs[1])
 		}
 		return reg.OptionBlock(langCat, segs[1])
@@ -74,8 +79,8 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 	// Form 2: first segment is a known language id. Walk
 	// language.Subcategories[<lang>] for the second-segment category,
 	// then resolve the third-segment option.
-	langCat := findCategory(reg, "language")
-	if langCat != nil && optionExists(langCat, segs[0]) {
+	langCat := reg.FindCategory("language")
+	if langCat != nil && langCat.HasOption(segs[0]) {
 		if len(segs) != 3 {
 			return nil, fmt.Errorf("show %s: language-nested reference must be <lang>.<category>.<option>", ref)
 		}
@@ -90,7 +95,7 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 		if sub == nil {
 			return nil, fmt.Errorf("show %s: language %q has no sub-category %q", ref, segs[0], segs[1])
 		}
-		if !optionExists(sub, segs[2]) {
+		if !sub.HasOption(segs[2]) {
 			return nil, fmt.Errorf("show %s: option %q not found in %s.%s", ref, segs[2], segs[0], segs[1])
 		}
 		return reg.OptionBlock(sub, segs[2])
@@ -98,41 +103,15 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 
 	// Form 3: top-level `<cat>.<opt>` (exactly two segments).
 	if len(segs) == 2 {
-		cat := findCategory(reg, segs[0])
+		cat := reg.FindCategory(segs[0])
 		if cat == nil {
 			return nil, fmt.Errorf("show %s: no category %q in registry", ref, segs[0])
 		}
-		if !optionExists(cat, segs[1]) {
+		if !cat.HasOption(segs[1]) {
 			return nil, fmt.Errorf("show %s: option %q not found in category %q", ref, segs[1], segs[0])
 		}
 		return reg.OptionBlock(cat, segs[1])
 	}
 
 	return nil, fmt.Errorf("show %s: reference does not match any known form (language.<lang>, <lang>.<cat>.<opt>, or <cat>.<opt>)", ref)
-}
-
-// findCategory returns the top-level Category with the given id, or
-// nil if none.
-func findCategory(reg *registry.Registry, id string) *registry.Category {
-	for _, cat := range reg.Categories {
-		if cat.ID == id {
-			return cat
-		}
-	}
-	return nil
-}
-
-// optionExists reports whether the category has an option with the
-// given id. (Mirrors the unexported helper in the registry package;
-// we duplicate rather than export to keep the registry surface small.)
-func optionExists(cat *registry.Category, id string) bool {
-	if cat == nil {
-		return false
-	}
-	for _, opt := range cat.Options {
-		if opt.ID == id {
-			return true
-		}
-	}
-	return false
 }
