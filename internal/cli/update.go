@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -54,15 +53,15 @@ type installMethod struct {
 // developer's `$HOME/go/bin/` looks like a regular bin path otherwise).
 func detectInstallMethod(exePath string) installMethod {
 	// Normalise Windows backslashes so the rules below can use
-	// forward-slash patterns uniformly. The actual path string the
-	// caller passed in is preserved for the suggestion text via
-	// runtime.GOOS gating below.
+	// forward-slash patterns uniformly. Windows go-install detection
+	// works through this normalisation (`C:\Users\me\go\bin\em-dee.exe`
+	// → contains `/go/bin/`) — no runtime.GOOS gate needed.
 	p := strings.ReplaceAll(exePath, "\\", "/")
 
-	// Unix go-install detection: $GOPATH/bin, $HOME/go/bin, $(go env
-	// GOBIN). We can't read GOPATH from inside the running em-dee
-	// binary reliably (the user may have a different env than at
-	// install time), so check the common locations.
+	// Unix + Windows go-install detection: $GOPATH/bin, $HOME/go/bin,
+	// $(go env GOBIN). We can't read GOPATH from inside the running
+	// em-dee binary reliably (the user may have a different env than
+	// at install time), so check the common locations.
 	if strings.Contains(p, "/go/bin/") {
 		return installMethod{
 			viaPackageManager: true,
@@ -81,7 +80,6 @@ func detectInstallMethod(exePath string) installMethod {
 		}
 	}
 
-	_ = runtime.GOOS // reserved for future windows-specific suggestion text
 	return installMethod{}
 }
 
@@ -233,6 +231,11 @@ func newUpdateCmd(opts Options) *cobra.Command {
 				}
 			}
 
+			// runUpdateCheck guarantees result.code is set even when
+			// err is non-nil; the error itself carries diagnostic
+			// detail already folded into result.message, so we drop
+			// it. If a `-v` / verbose flag lands later, route the
+			// error through that path.
 			result, _ := runUpdateCheck(env)
 			// Direct the message to the right stream: stdout for the
 			// happy paths (0/1) since scripts may want to read it,
