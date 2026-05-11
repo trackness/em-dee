@@ -58,7 +58,11 @@ top-level `CLAUDE.md`.
 - `github.com/spf13/cobra` — CLI framework
 - `charm.land/huh/v2` — interactive forms
 - `github.com/charmbracelet/lipgloss` — terminal styling
+- `golang.org/x/term` — terminal-width detection (used by §7.4
+  presentation wrap)
 - `gopkg.in/yaml.v3` — parse `_index.yaml`
+- `github.com/minio/selfupdate` (or equivalent) — atomic binary
+  replacement (see §12.6)
 - `embed` (stdlib) — ship templates inside the binary
 
 ### 3.2 Project layout
@@ -282,6 +286,14 @@ em-dee update --check
   carries no option). For optional categories this writes no block; for
   required categories it is a hard error.
 
+**cli ↔ registry hand-off**: the cobra layer collects flag state
+into a `map[string]any` (top-level category id or namespaced
+`<lang-id>.<category-id>` key → string or `[]string` value) and
+passes it to `registry.ResolveSelection(m map[string]any) (Picks,
+error)`, which is the single resolution entry point shared with
+golden-fixture loading (§9.2). The CLI does no semantic resolution
+of its own.
+
 **`show` reference form**: `em-dee show` takes a single positional
 dotted reference and prints the corresponding block's `.md` content
 to stdout (or errors if the ref doesn't resolve to a leaf option).
@@ -320,11 +332,15 @@ dynamic-field corner cases.
 
 1. **Form 1 — language**: a single `huh.Form` with one
    `huh.Group` containing one `huh.Select[string]` for the language.
-   The cursor lands on the first option in `_index.yaml` declaration
-   order; no value is accepted until the user presses Enter. Form 1
-   is `required: true` at the registry level (§4.2 / §9.1), and the
-   huh field enforces a non-empty selection via huh's built-in
-   required-field handling.
+   The select is constructed with no pre-selected value, so the
+   user must affirmatively press Enter on a highlighted option to
+   accept. (huh v2's `huh.Select` always *highlights* one row — the
+   first by default — but does not commit a value until the user
+   presses Enter; a Ctrl-C/Esc cancellation is handled per the
+   "Cancellation" paragraph below.) A `.Validate(func(s string)
+   error { ... })` on the field enforces non-empty selection as
+   belt-and-braces — though by construction the user cannot accept
+   an empty value from a `huh.Select` with a non-empty options list.
 2. **Form 2 — rest**: constructed *after* form 1 returns, using the
    chosen language's subtree plus the cross-cutting categories. One
    `huh.Group` per category, paginated. Defaults pre-populate bound
@@ -430,6 +446,14 @@ schema below, with no markdown fences and no preamble.
 ```
 
 `issues` may be empty (and typically is when `verdict == "ok"`).
+
+This is the schema as produced by the claude wire response. §7.7
+defines an *additional* sentinel `verdict` value (`"unstructured"`)
+that appears **only** in the on-disk `--review-out` JSON when
+parsing fell back to tier 3 — never in a claude wire response.
+Consumers parsing an `--review-out` artifact should treat the
+`verdict` field as the four-value enum `"ok" | "warnings" |
+"problems" | "unstructured"`.
 
 ### 7.3 Parsing
 
