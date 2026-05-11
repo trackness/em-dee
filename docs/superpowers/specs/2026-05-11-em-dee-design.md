@@ -54,10 +54,15 @@ top-level `CLAUDE.md`.
 
 ### 3.1 Stack
 
-- Go 1.22+
+- Go 1.22+ in `go.mod`; toolchain may be newer (Phase 4 bumped to 1.25
+  to satisfy huh v2's dependency graph — the `go` directive in
+  `go.mod` reflects the minimum supported, not the build toolchain)
 - `github.com/spf13/cobra` — CLI framework
 - `charm.land/huh/v2` — interactive forms
-- `github.com/charmbracelet/lipgloss` — terminal styling
+- `charm.land/lipgloss/v2` — terminal styling. The spec previously
+  named `github.com/charmbracelet/lipgloss`; switched to
+  `charm.land/lipgloss/v2` because huh v2 transitively requires it and
+  module-graph hygiene precludes two lipgloss copies.
 - `golang.org/x/term` — terminal-width detection (used by §7.4
   presentation wrap)
 - `gopkg.in/yaml.v3` — parse `_index.yaml`
@@ -353,13 +358,14 @@ dynamic-field corner cases.
    `huh.Group` containing one `huh.Select[string]` for the language.
    The select is constructed with no pre-selected value, so the
    user must affirmatively press Enter on a highlighted option to
-   accept. (huh v2's `huh.Select` always *highlights* one row — the
-   first by default — but does not commit a value until the user
-   presses Enter; a Ctrl-C/Esc cancellation is handled per the
-   "Cancellation" paragraph below.) A `.Validate(func(s string)
-   error { ... })` on the field enforces non-empty selection as
-   belt-and-braces — though by construction the user cannot accept
-   an empty value from a `huh.Select` with a non-empty options list.
+   accept. **huh v2 caveat**: `huh.Select[T]` writes the highlighted
+   row's value into the bound pointer at construction time (verified
+   against the v2 source); the user-visible UX is unchanged (Enter
+   still commits) but anything reading the bound variable *before*
+   `Run()` returns will see the first option's id, not the zero
+   value. A `.Validate(func(s string) error { ... })` on the field
+   acts as belt-and-braces; cancellation (Ctrl-C / Esc) is handled
+   per the "Cancellation" paragraph below.
 2. **Form 2 — rest**: constructed *after* form 1 returns, using the
    chosen language's subtree plus the cross-cutting categories. One
    `huh.Group` per category, paginated. Defaults pre-populate bound

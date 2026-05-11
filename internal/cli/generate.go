@@ -12,9 +12,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 
 	"github.com/trackness/em-dee/internal/registry"
 	"github.com/trackness/em-dee/internal/render"
+	"github.com/trackness/em-dee/internal/tui"
 )
 
 // generateFlags holds the wired-up state for one invocation. The
@@ -241,20 +243,40 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 		selection[key] = f.Value.String()
 	})
 
-	// Phase 3 has no interactive flow. `--language` is required
-	// regardless of `--use-defaults`: spec §5.3 defines
-	// `--use-defaults` as "prompt only for language" (still
-	// interactive), and the interactive prompt lands in Phase 4. The
-	// language category has no default per spec §9.1, so without
-	// `--language` the pipeline would eventually hit the deeper
-	// "required category not set and no default available" error — we
-	// surface a single clear message up front instead so scripts get
-	// one diagnostic, not two.
+	// Interactive dispatch per spec §5.2. We enter interactive mode
+	// when --language is unset AND stdin/stdout are TTYs.
+	// --use-defaults in a TTY context still runs form 1 (language
+	// has no default per §8.3), then skips form 2 and lets
+	// ApplyDefaults fill the rest per spec §5.3. On a non-TTY
+	// (pipe, CI, redirect), fall through to the hard-error path so
+	// scripted use stays predictable.
+	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang && isInteractive() {
+		picks, err := runInteractive(reg, flags.useDefaults)
+		if err != nil {
+			if errors.Is(err, tui.ErrCancelled) {
+				// Distinct from a generic failure: the user chose to
+				// abort. Print a brief note and exit 130 (POSIX
+				// convention for SIGINT-style cancellation; lets
+				// shell loops `set -e` the same way ^C would have).
+				fmt.Fprintln(cmd.ErrOrStderr(), "cancelled")
+				return &exitCodeError{code: 130, msg: "cancelled by user"}
+			}
+			return err
+		}
+		return finishGenerate(cmd, reg, picks, flags)
+	}
+
+	// Non-interactive path. `--language` is required: spec §5.3
+	// defines `--use-defaults` as "prompt only for language" (still
+	// interactive). On a non-TTY, neither branch can interact, so we
+	// surface a single clear message up front instead of letting the
+	// pipeline hit the deeper "required category not set" error
+	// later — scripts get one diagnostic, not two.
 	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang {
 		if flags.useDefaults {
-			return fmt.Errorf("--use-defaults still requires --language=<id> in non-interactive mode; the interactive language prompt lands in Phase 4")
+			return fmt.Errorf("--use-defaults still requires --language=<id> in non-interactive mode; interactive mode needs a TTY")
 		}
-		return fmt.Errorf("language is required; pass --language=<id> or run interactively (interactive flow lands in Phase 4)")
+		return fmt.Errorf("language is required; pass --language=<id> or run interactively (interactive needs a TTY)")
 	}
 
 	// Resolve flag map → Picks. ResolveSelection enforces option-id
@@ -267,6 +289,68 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	// Fill defaults for omitted categories.
 	picks = registry.ApplyDefaults(picks, reg)
 
+	return finishGenerate(cmd, reg, picks, flags)
+}
+
+// runInteractive drives the two-phase huh flow per spec §5.2: form 1
+// resolves the language, ApplyDefaults seeds form 2's bindings, form
+// 2 collects the rest plus a confirm group. Returns the final Picks
+// or an error (notably tui.ErrCancelled on user abort or No-on-
+// confirm).
+//
+// useDefaults=true skips form 2 entirely: form 1 still runs (language
+// has no default per spec §8.3), then ApplyDefaults fills in the
+// rest. This matches spec §5.3's "prompt only for language" wording.
+//
+// UX tradeoff (PR #5 review L2): the useDefaults=true path commits the
+// file immediately after the language pick — no confirm group, no
+// preview of what's about to be written. This is intentional per spec
+// §5.3 ("prompt only for language"); the safety net is spec §6's
+// existing-file rule, which still rejects a write over an existing
+// CLAUDE.md without --force. If users report the no-preview UX as
+// sharp in practice, the v2 move is to surface the render-order
+// summary as a final-line confirmation before the write rather than
+// re-adding the confirm group (which would put us on the path to
+// ignoring --use-defaults).
+func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, error) {
+	lang, err := tui.RunLanguageForm(reg)
+	if err != nil {
+		return registry.Picks{}, err
+	}
+
+	// Seed Picks with the chosen language and apply defaults so
+	// form 2's bound variables start pre-populated per spec §5.2
+	// paragraph 2.
+	//
+	// Ordering constraint (load-bearing): the language pick MUST be
+	// seeded into picks before ApplyDefaults is called. ApplyDefaults
+	// walks the chosen language's sub-category subtree only when
+	// `picks.Values[LanguageCategoryID]` is already set (see
+	// registry/defaults.go's chosenLang lookup). Moving the seed line
+	// below the ApplyDefaults call would silently drop every
+	// language-nested default from the `--use-defaults` interactive
+	// path — the form-2 sub-category bindings would come back empty
+	// and the user would see no pre-populated selections. The
+	// non-interactive path doesn't hit this because `--language` is
+	// parsed into the selection map before ResolveSelection runs;
+	// only the interactive path has the seed-then-default ordering
+	// exposed.
+	picks := registry.NewPicks()
+	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(lang)
+	picks = registry.ApplyDefaults(picks, reg)
+
+	if useDefaults {
+		// --use-defaults: skip form 2, return the defaulted Picks.
+		return picks, nil
+	}
+
+	return tui.RunSecondaryForm(reg, lang, picks)
+}
+
+// finishGenerate is the shared tail of both the interactive and
+// non-interactive paths: required-category check, render, write (or
+// dry-run to stdout), success line.
+func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags) error {
 	// Required-category check after defaults: a required category
 	// with no value at this point (no default, no user pick) is a
 	// hard error. ResolveSelection already rejected explicit-empty
@@ -294,7 +378,9 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 		return err
 	}
 
-	// Dry-run: stdout, skip existing-file check.
+	// Dry-run: stdout, skip existing-file check and success line.
+	// The success line is a side-channel for human users; piping
+	// dry-run output into another tool shouldn't get it mixed in.
 	if flags.dryRun {
 		_, err := cmd.OutOrStdout().Write(content)
 		return err
@@ -304,7 +390,70 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	if err := writeOutput(cmd.ErrOrStderr(), flags.out, content, flags.force); err != nil {
 		return err
 	}
+
+	// Success line per spec §5.2 step 7. Goes to stderr (out of
+	// scripted-capture's way) so `em-dee generate > out` doesn't
+	// produce a CLAUDE.md path-confused tee.
+	blocks := countBlocks(reg, picks)
+	fmt.Fprintln(cmd.ErrOrStderr(), tui.SuccessLine(flags.out, blocks, len(content)))
 	return nil
+}
+
+// countBlocks returns the number of block files that contributed to
+// the rendered content for `picks`. Mirrors the renderer's walk order
+// so the success line's count matches what's actually in the file.
+func countBlocks(reg *registry.Registry, picks registry.Picks) int {
+	n := 0
+	for _, cat := range reg.Categories {
+		if cat.ID == registry.LanguageCategoryID {
+			v := picks.Values[registry.LanguageCategoryID]
+			if v == nil || v.Single == nil || *v.Single == "" {
+				continue
+			}
+			n++ // language base.md
+			lang := *v.Single
+			for _, sub := range cat.Subcategories[lang] {
+				n += countCategoryBlocks(sub, picks.Values[lang+"."+sub.ID])
+			}
+			continue
+		}
+		n += countCategoryBlocks(cat, picks.Values[cat.ID])
+	}
+	return n
+}
+
+// countCategoryBlocks returns the number of block files a category
+// contributes given its picked value. Mirrors render.renderCategory.
+func countCategoryBlocks(cat *registry.Category, v *registry.Value) int {
+	if v == nil {
+		return 0
+	}
+	switch cat.Pick {
+	case registry.PickSingle:
+		if v.Single == nil || *v.Single == "" {
+			return 0
+		}
+		return 1
+	case registry.PickMulti:
+		if v.Multi == nil {
+			return 0
+		}
+		return len(*v.Multi)
+	}
+	return 0
+}
+
+// isInteractive reports whether the current process has a TTY on
+// both stdin and stdout. Both must be a TTY to launch a huh form:
+// stdin must be readable for key events, and stdout must be a TTY
+// for the rendered form to make sense. Pipes / redirects / CI on
+// either side fall through to the non-interactive path.
+//
+// Defensive: term.IsTerminal works across darwin/linux/windows.
+// Windows pipe semantics differ subtly from POSIX, but term's
+// abstraction handles it.
+var isInteractive = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // writeOutput implements the existing-file rules from spec §6:

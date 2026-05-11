@@ -253,6 +253,82 @@ func TestGenerate_RegistryLoadErrorSurfaces(t *testing.T) {
 	}
 }
 
+// TestGenerate_SuccessLineOnStderr asserts the post-write success
+// line (spec §5.2 step 7) is emitted to stderr after a non-dry-run
+// write. The line carries the path, block count, and KB size.
+func TestGenerate_SuccessLineOnStderr(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "CLAUDE.md")
+
+	root := NewRootCmd(Options{Registry: reg})
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--out=" + out})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	got := stderr.String()
+	for _, want := range []string{"wrote " + out, "blocks", "KB"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("success line missing %q: %q", want, got)
+		}
+	}
+}
+
+// TestGenerate_DryRunNoSuccessLine asserts --dry-run does not emit
+// the success line — dry-run is a pipeline-friendly path and adding
+// stderr chatter on top would confuse tooling that wraps em-dee.
+func TestGenerate_DryRunNoSuccessLine(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	root := NewRootCmd(Options{Registry: reg})
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--dry-run"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(stderr.String(), "wrote ") {
+		t.Errorf("dry-run unexpectedly emitted success line: %q", stderr.String())
+	}
+}
+
+// TestIsInteractive_NonTTYInTests asserts the predicate returns false
+// under `go test`, where stdin/stdout are pipes. This is the seam
+// that keeps existing tests' non-interactive flow stable.
+func TestIsInteractive_NonTTYInTests(t *testing.T) {
+	t.Parallel()
+	if isInteractive() {
+		t.Error("isInteractive() = true under go test; expected false (stdin/stdout are pipes)")
+	}
+}
+
+// TestGenerate_InteractiveGateFallsThroughOnNonTTY asserts that with
+// no --language and no --use-defaults, on a non-TTY (test process),
+// the command takes the hard-error path. This locks in the
+// predicate's role as the interactive↔non-interactive gate so a
+// regression that flips it doesn't silently spawn huh in CI.
+func TestGenerate_InteractiveGateFallsThroughOnNonTTY(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	root := NewRootCmd(Options{Registry: reg})
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"generate"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error on non-TTY without --language")
+	}
+	if !strings.Contains(err.Error(), "language") {
+		t.Errorf("error should mention language; got: %v", err)
+	}
+}
+
 // TestGenerate_HyphenatedLanguageFlag is the regression test for the
 // flag-name → selection-key mapping. A language id that contains a
 // dash (e.g. `typescript-node`) must produce a flag like
