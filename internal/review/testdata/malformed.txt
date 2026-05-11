@@ -1,0 +1,2 @@
+{verdict: ok summary: broken
+"issues": [{"severity":"error", broken

@@ -1,0 +1,12 @@
+{
+  "verdict": "problems",
+  "summary": "Contradictory build commands and missing required section.",
+  "issues": [
+    {
+      "severity": "error",
+      "location": "Build",
+      "issue": "Two conflicting build commands specified",
+      "suggestion": "Pick one and remove the other"
+    }
+  ]
+}
