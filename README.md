@@ -49,6 +49,18 @@ brew install trackness/tap/em-dee
 | `em-dee version` | Print the version. `--json` for machine-readable output. |
 | `em-dee update --check` | Check for a newer release. Exit code `0` = up-to-date, `1` = update available, `2` = error. |
 
+### `generate` behaviour flags
+
+`em-dee generate` (and the bare `em-dee` interactive entrypoint) accepts
+a small set of flags that control where and how the file is written:
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--out=<path>` | `CLAUDE.md` | Path to write the generated file. |
+| `--force` | `false` | Overwrite an existing file at `--out`. The previous contents are backed up to `<out>.bak.<unix-ts>` in the same directory. Without `--force`, em-dee refuses to overwrite. |
+| `--dry-run` | `false` | Write the rendered output to stdout instead of disk. Skips the existing-file check and the Claude review. |
+| `--use-defaults` | `false` | Accept the default option for every category. `--language` must still be supplied (or chosen interactively on a TTY). |
+
 ## Claude review
 
 After writing `CLAUDE.md`, em-dee shells out to `claude -p` to review the
