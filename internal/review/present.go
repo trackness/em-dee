@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 )
@@ -51,12 +52,23 @@ func presentStructured(w io.Writer, res ReviewResult, width int) {
 // presentUnstructured renders the §7.7 sentinel shape. The raw text is
 // printed verbatim (no wrap) — it's already prose and lipgloss-wrapping
 // it would mangle Claude's intended line breaks.
+//
+// Edge case: a hand-constructed result with both Summary and Raw empty
+// would print a header and a blank line. Parse() never produces that
+// shape (tier 3 always populates Summary), but the defensive
+// "review failed without producing text" sentinel keeps the output
+// readable for any future caller that synthesises an unstructured
+// result by hand.
 func presentUnstructured(w io.Writer, res ReviewResult) {
 	fmt.Fprintln(w, sectionHeaderStyle.Render("── review (unstructured) ──"))
 	if res.Summary != "" {
 		fmt.Fprintln(w, severityWarningStyle.Render(res.Summary))
 	}
 	fmt.Fprintln(w)
+	if res.Summary == "" && res.Raw == "" {
+		fmt.Fprintln(w, severityWarningStyle.Render("review failed without producing text"))
+		return
+	}
 	fmt.Fprint(w, res.Raw)
 	if res.Raw == "" || !strings.HasSuffix(res.Raw, "\n") {
 		fmt.Fprintln(w)
@@ -76,12 +88,19 @@ func renderIssue(w io.Writer, iss Issue, width int) {
 
 	loc := truncateLocation(iss.Location, locationMaxCols)
 	prefix := fmt.Sprintf(`Section "%s" — `, loc)
-	bodyWrap := wrap(iss.Issue, max(width-len(prefix), 20))
+	// Indent width is measured in display columns, not bytes. The em-dash
+	// `—` is one column but three UTF-8 bytes; using len(prefix) would
+	// push continuation lines two columns too far right. lipgloss.Width
+	// is already imported and handles the rune-counting (plus ANSI, which
+	// `prefix` currently doesn't carry — but the choice keeps us safe if
+	// a future change adds inline styling here).
+	prefixCols := lipgloss.Width(prefix)
+	bodyWrap := wrap(iss.Issue, max(width-prefixCols, 20))
 	bodyLines := strings.Split(bodyWrap, "\n")
 
 	// First line: prefix + first body chunk. Subsequent body lines
 	// align under the start of the issue text (continuation indent).
-	contIndent := strings.Repeat(" ", len(prefix))
+	contIndent := strings.Repeat(" ", prefixCols)
 	fmt.Fprintln(w, sev.Render(prefix+bodyLines[0]))
 	for _, line := range bodyLines[1:] {
 		fmt.Fprintln(w, sev.Render(contIndent+line))
@@ -101,20 +120,34 @@ func renderIssue(w io.Writer, iss Issue, width int) {
 	}
 }
 
-// truncateLocation returns loc truncated to (max-3) chars + "..." when
-// len(loc) > max. Operates on bytes (location strings are short
-// identifiers; rune-aware wrapping would be over-engineered).
+// truncateLocation returns loc truncated to (max-3) runes + "..." when
+// loc is longer than max runes. Rune-aware to avoid emitting half a
+// codepoint when a Section header contains non-ASCII characters
+// (`"Section: 빌드"` etc.). Location strings are typically short ASCII
+// identifiers so the fast path hits first.
 func truncateLocation(loc string, max int) string {
-	if len(loc) <= max {
+	if utf8.RuneCountInString(loc) <= max {
 		return loc
 	}
-	return loc[:max-3] + "..."
+	// Walk runes until we've kept max-3, then append the ellipsis.
+	keep := max - 3
+	i := 0
+	for j := range loc {
+		if i == keep {
+			return loc[:j] + "..."
+		}
+		i++
+	}
+	// Unreachable: loc had > max runes, so we hit keep before end.
+	return loc
 }
 
 // wrap soft-wraps s at width columns by inserting newlines at word
-// boundaries. A long word longer than width is broken hard — the
-// alternative (overflow the line) would defeat the wrap's whole purpose.
-// width <= 0 means "no wrap" (return s verbatim).
+// boundaries. A word longer than width overflows the line — review
+// content is sentences of normal words, so the overflow case is
+// vanishingly rare and the alternative (mid-word hard-break) would
+// mangle URLs and identifiers when it did fire. width <= 0 means
+// "no wrap" (return s verbatim).
 func wrap(s string, width int) string {
 	if width <= 0 {
 		return s

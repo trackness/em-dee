@@ -243,6 +243,67 @@ func TestPresent_FallbackWidth(t *testing.T) {
 	}
 }
 
+// TestPresent_LongMultibyteLocationTruncatedAtRunes asserts rune-aware
+// truncation: when the location is longer than the 60-rune threshold
+// and contains multibyte characters, the truncated form is still valid
+// UTF-8 (no mid-rune cut) and counts runes rather than bytes.
+func TestPresent_LongMultibyteLocationTruncatedAtRunes(t *testing.T) {
+	t.Parallel()
+	// 100 Korean syllables (3 UTF-8 bytes each, 1 display column per
+	// rune in the lipgloss/wcwidth model — but the byte length is 300,
+	// way over the 60-byte threshold under the old impl, which would
+	// have cut mid-rune).
+	longLoc := strings.Repeat("빌", 100)
+	res := ReviewResult{
+		Verdict: VerdictWarnings,
+		Summary: "multibyte location",
+		Issues: []Issue{
+			{
+				Severity:   SeverityWarning,
+				Location:   longLoc,
+				Issue:      "something",
+				Suggestion: "fix it",
+			},
+		},
+	}
+	var buf bytes.Buffer
+	Present(&buf, res, 200)
+	got := stripANSI(buf.String())
+
+	// Output must be valid UTF-8 — a byte-based truncation would have
+	// produced a partial rune.
+	for _, line := range strings.Split(got, "\n") {
+		for i, r := range line {
+			if r == '�' {
+				t.Errorf("line %d contains replacement rune at %d (mid-rune cut?): %q", i, i, line)
+			}
+		}
+	}
+	// The truncated form should appear: 57 syllables + "...".
+	wantPrefix := strings.Repeat("빌", 57) + "..."
+	if !strings.Contains(got, wantPrefix) {
+		t.Errorf("expected rune-truncated location prefix %q in output:\n%s", wantPrefix, got)
+	}
+}
+
+// TestPresent_UnstructuredEmptyEmitsSentinel asserts the L4 edge case:
+// a hand-constructed unstructured result with empty Summary and empty
+// Raw prints a sentinel line instead of just a blank.
+func TestPresent_UnstructuredEmptyEmitsSentinel(t *testing.T) {
+	t.Parallel()
+	res := ReviewResult{
+		Verdict: VerdictUnstructured,
+		// Summary and Raw deliberately empty.
+		Issues: []Issue{},
+	}
+	var buf bytes.Buffer
+	Present(&buf, res, 80)
+	got := stripANSI(buf.String())
+	if !strings.Contains(got, "review failed without producing text") {
+		t.Errorf("expected sentinel for empty unstructured result:\n%s", got)
+	}
+}
+
 // TestPresent_IssueWrapsAtTermWidth asserts the issue body gets wrapped
 // at the configured terminal width, not truncated.
 func TestPresent_IssueWrapsAtTermWidth(t *testing.T) {
