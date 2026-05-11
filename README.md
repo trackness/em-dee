@@ -45,8 +45,14 @@ curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_l
 
 *Windows (x86_64, PowerShell)*
 
+`Expand-Archive` extracts into a sibling folder named after the
+archive (here, `./em-dee/`) — unlike the unix `tar -xz` snippets,
+which extract flat in CWD. Pass `-DestinationPath .` to flatten if
+you want parity. The trailing `Remove-Item` cleans up the downloaded
+`.zip`.
+
 ```powershell
-Invoke-WebRequest -Uri https://github.com/trackness/em-dee/releases/latest/download/em-dee_windows_amd64.zip -OutFile em-dee.zip; Expand-Archive em-dee.zip
+Invoke-WebRequest -Uri https://github.com/trackness/em-dee/releases/latest/download/em-dee_windows_amd64.zip -OutFile em-dee.zip; Expand-Archive em-dee.zip -DestinationPath .; Remove-Item em-dee.zip
 ```
 
 **Homebrew** (post-tap-setup; not live until the `trackness/tap`
