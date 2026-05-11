@@ -77,11 +77,13 @@ category flags — em-dee errors out instead of half-prompting.
 
 ### `show <ref>` resolver forms
 
-| Form                 | Example                 | Resolves to                   |
-|----------------------|-------------------------|-------------------------------|
-| `language.<lang>`    | `language.python`       | `python/base.md`              |
-| `<lang>.<cat>.<opt>` | `python.logging.loguru` | `python/20-logging/loguru.md` |
-| `<cat>.<opt>`        | `infra.docker`          | `20-infra/docker.md`          |
+Resolved paths are relative to `internal/registry/templates/`.
+
+| Form                 | Example                 | Resolves to                               |
+|----------------------|-------------------------|-------------------------------------------|
+| `language.<lang>`    | `language.python`       | `10-language/python/base.md`              |
+| `<lang>.<cat>.<opt>` | `python.logging.loguru` | `10-language/python/20-logging/loguru.md` |
+| `<cat>.<opt>`        | `infra.docker`          | `20-infra/docker.md`                      |
 
 ### `update --check` exit codes
 
