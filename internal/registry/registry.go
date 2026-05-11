@@ -120,8 +120,11 @@ func walk(fsys fs.FS, root string) (*Registry, error) {
 		// Special-case the language category: descend into each
 		// language option's folder and collect its sub-categories.
 		// Per spec §4.1 the language category is the only one with
-		// subcategories; all others stay flat.
-		if name == "10-language" {
+		// subcategories; all others stay flat. Match on the parsed
+		// (prefix-stripped) id rather than the on-disk folder name so
+		// the literal `10-language` lives only inside parseIndex's
+		// stripPrefix and is never re-encoded at this layer.
+		if cat.ID == LanguageCategoryID {
 			cat.Subcategories = map[string][]*Category{}
 			for _, opt := range cat.Options {
 				langDir := path.Join(dir, opt.ID)
