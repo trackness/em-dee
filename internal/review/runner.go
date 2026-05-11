@@ -81,6 +81,16 @@ func (r *ExecRunner) Run(ctx context.Context, prompt string) ([]byte, []byte, er
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	// Spec §7.6: "kill the process group" on timeout. configureProcessGroup
+	// installs platform-specific plumbing — on unix it sets SysProcAttr
+	// to start a new pgid and overrides cmd.Cancel to SIGKILL the whole
+	// group via syscall.Kill(-pid, ...). On windows it's a no-op (default
+	// exec.CommandContext behaviour kills the direct child only; Windows
+	// process-group semantics live in a different model, JobObjects,
+	// which is out of scope for the §7.6 fix). See runner_unix.go /
+	// runner_windows.go for the build-tagged implementations.
+	configureProcessGroup(cmd)
+
 	err := cmd.Run()
 	if err != nil {
 		// Distinguish timeout (context deadline exceeded) from a non-
