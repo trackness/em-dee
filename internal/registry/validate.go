@@ -22,16 +22,25 @@ var optionIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 func Validate(reg *Registry, fsys fs.FS, root string) error {
 	var errs []error
 
-	// Top-level: directory-name pattern + at most one _index.yaml.
-	if dirErr := validateFolderNames(fsys, root); dirErr != nil {
+	languageRoot := path.Join(root, "10-language")
+
+	// Top-level: directory-name pattern (NN- prefix; language root
+	// excluded — its children are language-id folders, not categories).
+	if dirErr := validateCategoryFolderNames(fsys, root); dirErr != nil {
 		errs = append(errs, dirErr...)
 	}
 
 	// Per-category checks.
 	for _, cat := range reg.Categories {
 		errs = append(errs, validateCategory(cat, fsys)...)
-		if cat.Path == path.Join(root, "10-language") {
+		if cat.Path == languageRoot {
 			errs = append(errs, validateLanguageCategory(cat)...)
+			// Children of the language root are language-id folders
+			// (`python`, `go`, …), which use a different naming rule
+			// (kebab, no NN- prefix) — see validateLanguageFolderNames.
+			if subErr := validateLanguageFolderNames(fsys, cat.Path); subErr != nil {
+				errs = append(errs, subErr...)
+			}
 			// Language subtrees: each language sub-folder must
 			// contain a base.md + its own per-language categories.
 			for _, opt := range cat.Options {
@@ -40,8 +49,8 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 					errs = append(errs, fmt.Errorf("%s: missing base.md", langDir))
 				}
 				// Each sub-folder under a language must follow the
-				// NN-name pattern too.
-				if subErr := validateFolderNames(fsys, langDir); subErr != nil {
+				// NN-name pattern (regular category-folder rules).
+				if subErr := validateCategoryFolderNames(fsys, langDir); subErr != nil {
 					errs = append(errs, subErr...)
 				}
 				for _, sub := range cat.Subcategories[opt.ID] {
@@ -54,12 +63,13 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 	return errors.Join(errs...)
 }
 
-// validateFolderNames asserts every direct-child directory of `dir`
-// matches `^[0-9]{2}-[a-z][a-z0-9-]*$`. Used for the top-level
-// categories and for each language's subtree. The `templates/
-// 10-language/<lang>/` level is exempt — language ids are kebab but
-// not NN-prefixed.
-func validateFolderNames(fsys fs.FS, dir string) []error {
+// validateCategoryFolderNames asserts every direct-child directory of
+// `dir` matches `^[0-9]{2}-[a-z][a-z0-9-]*$`. Used for the top-level
+// categories tree and for each language subtree's NN-prefixed
+// sub-categories. The language-root (`templates/10-language/`) has a
+// different rule for *its* direct children — see
+// validateLanguageFolderNames.
+func validateCategoryFolderNames(fsys fs.FS, dir string) []error {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		return nil
@@ -69,31 +79,32 @@ func validateFolderNames(fsys fs.FS, dir string) []error {
 		if !e.IsDir() {
 			continue
 		}
-		// Skip language-id folders (their parent is templates/
-		// 10-language, which is `dir` when called for language
-		// subtree validation only via the `langDir` branch — that
-		// path is the language-id folder itself, so its children
-		// are NN-prefixed sub-categories, which DO need the check).
-		// In other words: we always require the NN- prefix when
-		// validating a folder's children — the only exception is
-		// the `templates/10-language/` direct children (the
-		// language ids), and we never recurse into that loop from
-		// here because Validate calls this for each language dir
-		// separately and `templates/10-language` is checked once at
-		// top level where the children are the four language ids.
-		// To handle that, we add a path-based exemption: if `dir`
-		// ends in `/10-language`, the children are language ids
-		// (kebab, no NN-).
-		if strings.HasSuffix(dir, "/10-language") || dir == "10-language" {
-			if !optionIDPattern.MatchString(e.Name()) {
-				errs = append(errs, fmt.Errorf("%s/%s: language folder name must match %s",
-					dir, e.Name(), optionIDPattern.String()))
-			}
-			continue
-		}
 		if !folderNamePattern.MatchString(e.Name()) {
 			errs = append(errs, fmt.Errorf("%s/%s: folder name must match %s",
 				dir, e.Name(), folderNamePattern.String()))
+		}
+	}
+	return errs
+}
+
+// validateLanguageFolderNames asserts every direct-child directory of
+// `dir` (which must be the language root `templates/10-language/`)
+// matches the kebab option-id pattern. Language ids are kebab but
+// **not** NN-prefixed — language render order comes from the option
+// list in `templates/10-language/_index.yaml`, not from folder names.
+func validateLanguageFolderNames(fsys fs.FS, dir string) []error {
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		return nil
+	}
+	var errs []error
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if !optionIDPattern.MatchString(e.Name()) {
+			errs = append(errs, fmt.Errorf("%s/%s: language folder name must match %s",
+				dir, e.Name(), optionIDPattern.String()))
 		}
 	}
 	return errs
@@ -117,6 +128,14 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 
 	// Option-level checks.
 	seenID := map[string]bool{}
+	// seenFile tracks the **basenames** of files referenced by options
+	// in this category folder, used by the (non-recursive) orphan
+	// scan below. Language-option `file:` values are path-prefixed
+	// (e.g. `python/base.md`); those references point to files in
+	// language subfolders, not this category's flat root, so they
+	// would never match anything in the orphan scan. We deliberately
+	// skip writing path-bearing entries to keep seenFile structurally
+	// aligned with what the orphan scan reads.
 	seenFile := map[string]bool{}
 	for _, opt := range cat.Options {
 		if opt.DisplayName == "" {
@@ -129,7 +148,10 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 			errs = append(errs, fmt.Errorf("%s: duplicate option id %q", cat.Path, opt.ID))
 		}
 		seenID[opt.ID] = true
-		seenFile[opt.File] = true
+		if !strings.Contains(opt.File, "/") {
+			// Flat-category reference: pin against the orphan scan.
+			seenFile[opt.File] = true
+		}
 
 		filePath := path.Join(cat.Path, opt.File)
 		if _, err := fs.Stat(fsys, filePath); err != nil {
@@ -178,7 +200,9 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 	}
 
 	// Deterministic order so test substring assertions are stable.
-	sort.SliceStable(errs, func(i, j int) bool {
+	// sort.Slice is sufficient — the comparator is a total order on
+	// strings, so stable-vs-unstable produces identical output.
+	sort.Slice(errs, func(i, j int) bool {
 		return errs[i].Error() < errs[j].Error()
 	})
 

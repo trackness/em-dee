@@ -289,6 +289,17 @@ options:
 			},
 			wantSubs: []string{"20-infra", "_index.yaml"},
 		},
+		{
+			// M1 (review): pin the orphan-scan behaviour at the
+			// language root. A stray .md directly under
+			// `templates/10-language/` is not referenced by any
+			// option and must fire the orphan rule.
+			name: "orphan .md directly under templates/10-language",
+			mutate: func(m fstest.MapFS) {
+				m["templates/10-language/stray.md"] = &fstest.MapFile{Data: []byte("stray\n")}
+			},
+			wantSubs: []string{"orphan", "stray.md"},
+		},
 	}
 
 	for _, tc := range tests {
