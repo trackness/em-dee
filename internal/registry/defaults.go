@@ -1,7 +1,7 @@
 package registry
 
 // ApplyDefaults returns a new Picks with each unset category filled
-// from the registry's `default`. The contract (spec §3.3 / §8.2):
+// from the registry's `default`. The contract:
 //
 //   - nil pointer (unset) → fill with default if one exists.
 //   - non-nil pointer to empty value (explicit-none) → leave alone.
@@ -19,12 +19,12 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 
 	// Resolve which language has been chosen, if any. We read from
 	// the input picks (not `out`) — semantically identical in v1
-	// (the language category has no default per spec §9.1, so the
-	// input's language value is what the output sees too). Forward-
-	// compat hazard: if a future spec ever allows a language default,
-	// reading from `picks` would miss the just-filled default and a
-	// downstream consumer of the language subtree wouldn't see it
-	// here. Re-read from `out` after `fillIfUnset` if that changes.
+	// (the language category has no default, so the input's language
+	// value is what the output sees too). Forward-compat hazard: if a
+	// language default is ever introduced, reading from `picks` would
+	// miss the just-filled default and a downstream consumer of the
+	// language subtree wouldn't see it here. Re-read from `out` after
+	// `fillIfUnset` if that changes.
 	var chosenLang string
 	if v, ok := picks.Values[LanguageCategoryID]; ok && v != nil && v.Single != nil {
 		chosenLang = *v.Single
@@ -54,12 +54,12 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 }
 
 // fillIfUnset writes the registry default into `out[key]` only if
-// `out[key]` is "unset". Per spec §3.3, "unset" means **nil pointer**
-// — which covers both map-absent AND map-present-with-nil-value.
-// Explicit-none values (non-nil pointer to an empty value) are left
-// alone. The map-present-nil case can arise from generic merge helpers
-// or from cloneValue of a nil entry; treating it the same as map-absent
-// keeps the contract unambiguous for downstream render/CLI consumers.
+// `out[key]` is "unset". "Unset" means **nil pointer** — which covers
+// both map-absent AND map-present-with-nil-value. Explicit-none values
+// (non-nil pointer to an empty value) are left alone. The
+// map-present-nil case can arise from generic merge helpers or from
+// cloneValue of a nil entry; treating it the same as map-absent keeps
+// the contract unambiguous for downstream render/CLI consumers.
 func fillIfUnset(out Picks, key string, cat *Category) {
 	if v, ok := out.Values[key]; ok && v != nil {
 		// Already present and non-nil (chosen or explicit-none) —

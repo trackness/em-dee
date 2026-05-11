@@ -18,7 +18,7 @@ import (
 
 // promptTemplate is the embedded review prompt. It is concatenated with
 // the rendered CLAUDE.md content (via BuildPrompt) before being passed
-// to `claude -p` as a single argv arg per spec §7.1.
+// to `claude -p` as a single argv arg.
 //
 //go:embed prompt.md
 var promptTemplate string

@@ -7,9 +7,9 @@ import (
 	"syscall"
 )
 
-// configureProcessGroup installs the unix process-group plumbing per
-// spec §7.6: when the context's deadline fires, the entire process
-// group spawned for `claude` is killed, not just the direct child.
+// configureProcessGroup installs the unix process-group plumbing:
+// when the context's deadline fires, the entire process group spawned
+// for `claude` is killed, not just the direct child.
 //
 // Why this matters: `claude` may itself be a wrapper script (a Node
 // shim, a venv launcher, etc.) that forks subprocesses. The default

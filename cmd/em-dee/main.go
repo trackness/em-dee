@@ -1,6 +1,6 @@
 // Package main is the em-dee CLI entrypoint. The build-time variables
 // below are populated by `goreleaser` (via ldflags) or by local
-// `task build` per spec §12.7.
+// `task build`.
 package main
 
 import "github.com/trackness/em-dee/internal/cli"

@@ -13,14 +13,13 @@
 // (empty single-pick or empty multi-pick). MultiSelect does not have
 // this quirk — an untouched multi-pick stays empty.
 //
-// The caveat is pinned in four places that any future maintainer
+// The caveat is pinned in three places that any future maintainer
 // should keep in lockstep when huh v2 evolves:
 //
-//   - spec §5.2 ¶1 (the source-of-truth doc)
 //   - the construction-time docstring in form.go / form2.go
 //   - the long comment on SecondaryForm.Picks (form2.go)
 //   - TestBuildSecondaryForm_SeedsDefaults (form2_test.go)
 //
 // See SecondaryForm.Picks's long comment for the full treatment plus
-// the spec §3.3 tri-state interaction.
+// the tri-state interaction.
 package tui

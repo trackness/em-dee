@@ -1,8 +1,8 @@
 // Package tui owns the huh form construction for em-dee's interactive
-// flow per spec §5.2. The flow is **two sequential forms**: form 1
-// resolves the language, form 2 (built in Task 4.3) presents the
-// chosen language's sub-categories + cross-cutting categories + a
-// confirm group. Two .Run() calls, not one form with dynamic options.
+// flow. The flow is **two sequential forms**: form 1 resolves the
+// language, form 2 (built in Task 4.3) presents the chosen language's
+// sub-categories + cross-cutting categories + a confirm group. Two
+// .Run() calls, not one form with dynamic options.
 
 package tui
 
@@ -21,15 +21,14 @@ import (
 // without needing to import huh directly.
 var ErrCancelled = errors.New("cancelled by user")
 
-// BuildLanguageForm constructs the form-1 select per spec §5.2 step 1:
-// a single huh.Form with one huh.Group containing one huh.Select[string]
-// populated from the language category's options in registry order. The
-// chosen value is bound to *out. No pre-selection — huh.Select still
-// highlights one row but does not commit a value until Enter is pressed.
+// BuildLanguageForm constructs the form-1 select: a single huh.Form
+// with one huh.Group containing one huh.Select[string] populated from
+// the language category's options in registry order. The chosen value
+// is bound to *out. No pre-selection — huh.Select still highlights one
+// row but does not commit a value until Enter is pressed.
 //
 // Construction is split from Run so unit tests can inspect the form
-// without needing a TTY (per spec §11 and the testing constraint in the
-// plan).
+// without needing a TTY (per the testing constraint in the plan).
 func BuildLanguageForm(reg *registry.Registry, out *string) (*huh.Form, error) {
 	if reg == nil {
 		return nil, errors.New("BuildLanguageForm: nil registry")
@@ -63,9 +62,9 @@ func BuildLanguageForm(reg *registry.Registry, out *string) (*huh.Form, error) {
 		Options(opts...).
 		Value(out).
 		Validate(func(s string) error {
-			// Belt-and-braces per spec §5.2: huh.Select with non-empty
-			// options can't actually commit "" via Enter, but if huh's
-			// behaviour drifts we still surface a clean error.
+			// Belt-and-braces: huh.Select with non-empty options can't
+			// actually commit "" via Enter, but if huh's behaviour
+			// drifts we still surface a clean error.
 			if s == "" {
 				return errors.New("language is required")
 			}

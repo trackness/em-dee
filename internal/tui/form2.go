@@ -1,8 +1,7 @@
 // form2.go owns the construction of huh form 2 — the rest of the
-// picks plus the final confirm group per spec §5.2 step 2/3. Form 2
-// is built *after* form 1 returns so the language is known and the
-// group set is concrete; this avoids huh's dynamic-fields corner
-// cases per spec §5.2 paragraph 0.
+// picks plus the final confirm group. Form 2 is built *after* form 1
+// returns so the language is known and the group set is concrete;
+// this avoids huh's dynamic-fields corner cases.
 
 package tui
 
@@ -49,10 +48,9 @@ type SecondaryForm struct {
 // a confirm group summarising what will be rendered.
 //
 // Defaults flow from `initial` (typically the result of ApplyDefaults
-// after seeding form 1's language pick). Per spec §5.2 paragraph 2:
-// defaults pre-populate bound variables before .Run() so Enter
-// accepts the default. Optional categories without a default present
-// an empty selection state.
+// after seeding form 1's language pick). Defaults pre-populate bound
+// variables before .Run() so Enter accepts the default. Optional
+// categories without a default present an empty selection state.
 //
 // Construction is split from Run so tests can drive it without a TTY.
 func BuildSecondaryForm(reg *registry.Registry, langID string, initial registry.Picks) (*SecondaryForm, error) {
@@ -136,8 +134,7 @@ func BuildSecondaryForm(reg *registry.Registry, langID string, initial registry.
 // The group has one field — Select for single-pick, MultiSelect for
 // multi-pick. The bound variable is registered on `sf` keyed by the
 // selection key (e.g. `python.logging` or `infra`), with the default
-// pre-populated from `initial` so Enter accepts the default per spec
-// §5.2 paragraph 2.
+// pre-populated from `initial` so Enter accepts the default.
 func buildCategoryGroup(cat *registry.Category, key string, initial registry.Picks, sf *SecondaryForm) (*huh.Group, error) {
 	switch cat.Pick {
 	case registry.PickSingle:
@@ -182,9 +179,9 @@ func buildCategoryGroup(cat *registry.Category, key string, initial registry.Pic
 }
 
 // summarise produces the confirm-group description: a comma-separated
-// list of the blocks that will be rendered, in render order (§4.4).
-// Reads from the current bound variables so the summary tracks the
-// user's edits while form 2 is open.
+// list of the blocks that will be rendered, in render order. Reads
+// from the current bound variables so the summary tracks the user's
+// edits while form 2 is open.
 func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 	picks := sf.Picks()
 	var parts []string
@@ -259,30 +256,30 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 // MultiSelect doesn't have this quirk — an empty bound stays empty.
 // So an untouched MultiSelect comes back as nil/empty here and is
 // omitted from Picks, letting ApplyDefaults fill in the registry
-// default. This matches the spec §5.2 "optional categories without
-// a default present an empty selection state" intent for multi-pick,
-// and approximates it as closely as huh v2 allows for single-pick.
+// default. This matches the "optional categories without a default
+// present an empty selection state" intent for multi-pick, and
+// approximates it as closely as huh v2 allows for single-pick.
 //
 // Tradeoff vs. the flag layer: the flag layer treats `--infra=` as
-// explicit-empty per spec §5.1, but the interactive flow has no
-// natural keystroke for "explicit empty" — leaving a MultiSelect
-// untouched and one that the user deliberately cleared look the
-// same to huh. Forcing them apart would mean adding a sentinel
-// option, which complicates the UI for no v1 benefit.
+// explicit-empty, but the interactive flow has no natural keystroke
+// for "explicit empty" — leaving a MultiSelect untouched and one
+// that the user deliberately cleared look the same to huh. Forcing
+// them apart would mean adding a sentinel option, which complicates
+// the UI for no v1 benefit.
 //
-// Spec §3.3 tri-state interaction (PR #5 review L3): the registry
-// has three states — unset, explicit-empty, chosen. The interactive
-// path can only express two of them via this translation: a
-// non-empty MultiSelect maps to "chosen" and an empty MultiSelect
-// maps to "unset" (omitted from Picks, ApplyDefaults fills the
-// registry default). The "explicit-empty" state (defeating the
-// default for a multi-pick) is reachable only from the flag layer
-// (`--<cat>=` per spec §5.1) — interactive users who want zero blocks
-// from a defaulted multi-pick must exit and re-run with the empty
-// flag. This was a v1 scope call (no sentinel "explicit none" option
-// to keep the UI simple); whether v2 should expose this in the
-// interactive flow is a future question, not v1 scope. The flag
-// layer remains the canonical surface for explicit-empty.
+// Tri-state interaction (PR #5 review L3): the registry has three
+// states — unset, explicit-empty, chosen. The interactive path can
+// only express two of them via this translation: a non-empty
+// MultiSelect maps to "chosen" and an empty MultiSelect maps to
+// "unset" (omitted from Picks, ApplyDefaults fills the registry
+// default). The "explicit-empty" state (defeating the default for a
+// multi-pick) is reachable only from the flag layer (`--<cat>=`) —
+// interactive users who want zero blocks from a defaulted multi-pick
+// must exit and re-run with the empty flag. This was a v1 scope
+// call (no sentinel "explicit none" option to keep the UI simple);
+// whether v2 should expose this in the interactive flow is a future
+// question. The flag layer remains the canonical surface for
+// explicit-empty.
 func (sf *SecondaryForm) Picks() registry.Picks {
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(sf.langID)

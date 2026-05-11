@@ -48,10 +48,11 @@ type generateFlags struct {
 	force       bool
 	dryRun      bool
 	useDefaults bool
-	// Review-related flags per spec §7.7. `noReview` flips the default
-	// `--review=true` off. `reviewOut` is an optional path the parsed
-	// JSON (or §7.7 sentinel shape) is written to. `reviewTimeout`
-	// overrides the §7.6 default; empty means "use the default".
+	// Review-related flags. `noReview` flips the default `--review=true`
+	// off. `reviewOut` is an optional path the parsed JSON (or the
+	// unstructured sentinel shape) is written to. `reviewTimeout`
+	// overrides the default subprocess deadline; empty means "use the
+	// default".
 	noReview      bool
 	review        bool
 	reviewOut     string
@@ -122,10 +123,10 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "write to stdout instead of disk; skips existing-file check")
 	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept defaults for every category except --language (which must still be supplied; the interactive language prompt lands in Phase 4)")
 
-	// Review flags per spec §7.7. `--review` defaults to true; users
-	// pass `--no-review` to skip. cobra synthesises `--no-review` from
-	// the `--review` BoolVar via the "--no-<name>" convention, but we
-	// expose both names explicitly so `--help` lists them.
+	// Review flags. `--review` defaults to true; users pass `--no-review`
+	// to skip. cobra synthesises `--no-review` from the `--review`
+	// BoolVar via the "--no-<name>" convention, but we expose both
+	// names explicitly so `--help` lists them.
 	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing")
 	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (overrides --review)")
 	cmd.Flags().StringVar(&flags.reviewOut, "review-out", "", "write the parsed review JSON to this path")
@@ -246,11 +247,10 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 		selection[key] = f.Value.String()
 	})
 
-	// Interactive dispatch per spec §5.2. We enter interactive mode
-	// when --language is unset AND stdin/stdout are TTYs.
-	// --use-defaults in a TTY context still runs form 1 (language
-	// has no default per §8.3), then skips form 2 and lets
-	// ApplyDefaults fill the rest per spec §5.3. On a non-TTY
+	// Interactive dispatch. We enter interactive mode when --language is
+	// unset AND stdin/stdout are TTYs. --use-defaults in a TTY context
+	// still runs form 1 (the language category has no default), then
+	// skips form 2 and lets ApplyDefaults fill the rest. On a non-TTY
 	// (pipe, CI, redirect), fall through to the hard-error path so
 	// scripted use stays predictable.
 	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang && isInteractive() {
@@ -269,12 +269,12 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 		return finishGenerate(cmd, reg, picks, flags, opts)
 	}
 
-	// Non-interactive path. `--language` is required: spec §5.3
-	// defines `--use-defaults` as "prompt only for language" (still
-	// interactive). On a non-TTY, neither branch can interact, so we
-	// surface a single clear message up front instead of letting the
-	// pipeline hit the deeper "required category not set" error
-	// later — scripts get one diagnostic, not two.
+	// Non-interactive path. `--language` is required: `--use-defaults`
+	// is defined as "prompt only for language" (still interactive). On
+	// a non-TTY, neither branch can interact, so we surface a single
+	// clear message up front instead of letting the pipeline hit the
+	// deeper "required category not set" error later — scripts get one
+	// diagnostic, not two.
 	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang {
 		if flags.useDefaults {
 			return fmt.Errorf("--use-defaults still requires --language=<id> in non-interactive mode; interactive mode needs a TTY")
@@ -295,26 +295,24 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	return finishGenerate(cmd, reg, picks, flags, opts)
 }
 
-// runInteractive drives the two-phase huh flow per spec §5.2: form 1
-// resolves the language, ApplyDefaults seeds form 2's bindings, form
-// 2 collects the rest plus a confirm group. Returns the final Picks
-// or an error (notably tui.ErrCancelled on user abort or No-on-
-// confirm).
+// runInteractive drives the two-phase huh flow: form 1 resolves the
+// language, ApplyDefaults seeds form 2's bindings, form 2 collects the
+// rest plus a confirm group. Returns the final Picks or an error
+// (notably tui.ErrCancelled on user abort or No-on-confirm).
 //
-// useDefaults=true skips form 2 entirely: form 1 still runs (language
-// has no default per spec §8.3), then ApplyDefaults fills in the
-// rest. This matches spec §5.3's "prompt only for language" wording.
+// useDefaults=true skips form 2 entirely: form 1 still runs (the
+// language category has no default), then ApplyDefaults fills in the
+// rest. This matches the "prompt only for language" contract.
 //
 // UX tradeoff (PR #5 review L2): the useDefaults=true path commits the
 // file immediately after the language pick — no confirm group, no
-// preview of what's about to be written. This is intentional per spec
-// §5.3 ("prompt only for language"); the safety net is spec §6's
-// existing-file rule, which still rejects a write over an existing
-// CLAUDE.md without --force. If users report the no-preview UX as
-// sharp in practice, the v2 move is to surface the render-order
-// summary as a final-line confirmation before the write rather than
-// re-adding the confirm group (which would put us on the path to
-// ignoring --use-defaults).
+// preview of what's about to be written. This is intentional ("prompt
+// only for language"); the safety net is the existing-file rule, which
+// still rejects a write over an existing CLAUDE.md without --force. If
+// users report the no-preview UX as sharp in practice, the v2 move is
+// to surface the render-order summary as a final-line confirmation
+// before the write rather than re-adding the confirm group (which
+// would put us on the path to ignoring --use-defaults).
 func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, error) {
 	lang, err := tui.RunLanguageForm(reg)
 	if err != nil {
@@ -322,8 +320,7 @@ func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, e
 	}
 
 	// Seed Picks with the chosen language and apply defaults so
-	// form 2's bound variables start pre-populated per spec §5.2
-	// paragraph 2.
+	// form 2's bound variables start pre-populated.
 	//
 	// Ordering constraint (load-bearing): the language pick MUST be
 	// seeded into picks before ApplyDefaults is called. ApplyDefaults
@@ -401,42 +398,41 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 		return err
 	}
 
-	// Existing-file handling per spec §6.
+	// Existing-file handling.
 	if err := writeOutput(cmd.ErrOrStderr(), flags.out, content, flags.force); err != nil {
 		return err
 	}
 
-	// Success line per spec §5.2 step 7. Goes to stderr (out of
-	// scripted-capture's way) so `em-dee generate > out` doesn't
-	// produce a CLAUDE.md path-confused tee.
+	// Success line goes to stderr (out of scripted-capture's way) so
+	// `em-dee generate > out` doesn't produce a CLAUDE.md
+	// path-confused tee.
 	blocks := countBlocks(reg, picks)
 	fmt.Fprintln(cmd.ErrOrStderr(), tui.SuccessLine(flags.out, blocks, len(content)))
 
-	// Review per spec §7. --no-review wins over --review (which is on
-	// by default), so any --no-review short-circuits.
+	// Review. --no-review wins over --review (which is on by default),
+	// so any --no-review short-circuits.
 	if flags.noReview {
 		return nil
 	}
 	return runReview(cmd, content, flags, opts, timeout)
 }
 
-// runReview drives the spec §7 review flow: pick the runner (from
-// Options or a default ExecRunner), build the prompt, call the runner
-// under a timeout, parse, present, write `--review-out`, and return
-// either nil (exit 0) or an exitCodeError{code: 2} (verdict:problems
-// per spec §7.5).
+// runReview drives the review flow: pick the runner (from Options or
+// a default ExecRunner), build the prompt, call the runner under a
+// timeout, parse, present, write `--review-out`, and return either
+// nil (exit 0) or an exitCodeError{code: 2} on verdict:problems.
 //
-// Failure-mode mapping per spec §7.6 — `claude` not on PATH, timeout,
-// non-zero exit — all print a note on stderr and return nil so exit
-// stays 0. Parse failure (tier 3) also returns nil.
+// Failure-mode mapping — `claude` not on PATH, timeout, non-zero
+// exit — all print a note on stderr and return nil so exit stays 0.
+// Parse failure (tier 3) also returns nil.
 //
 // Exit-code tradeoff (plan Task 5.5): rather than calling os.Exit(2)
 // from inside RunE — which would skip cobra's deferred cleanup and
 // muddy test invocations — we return a `*exitCodeError{code: 2}`. The
 // root-level Execute (already in place for `em-dee update --check`)
 // unwraps it and calls os.Exit(2). cobra's default exit-on-error is 1,
-// so the exitCodeError seam is the cleanest way to thread spec §7.5's
-// exit 2 through.
+// so the exitCodeError seam is the cleanest way to thread exit 2
+// through.
 func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Options, timeout time.Duration) error {
 	runner := opts.reviewRunner
 	if runner == nil {
@@ -449,7 +445,7 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 
 	stdout, runnerStderr, err := runner.Run(ctx, prompt)
 
-	// §7.6 failure modes. Each prints a note and returns nil → exit 0.
+	// Failure modes. Each prints a note and returns nil → exit 0.
 	if err != nil {
 		switch {
 		case errors.Is(err, review.ErrClaudeNotFound):
@@ -491,19 +487,19 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 
 	review.Present(cmd.ErrOrStderr(), res, w)
 
-	// --review-out per §7.7. The on-disk shape differs slightly from
-	// the in-memory ReviewResult: tier 3 must produce the sentinel
-	// JSON exactly as §7.7 specifies (verdict / summary / raw / issues).
+	// --review-out. The on-disk shape differs slightly from the
+	// in-memory ReviewResult: tier 3 produces the unstructured sentinel
+	// JSON (verdict / summary / raw / issues) verbatim.
 	//
-	// Soft-note-on-write-failure (deliberate choice): the §7.5 exit-code
-	// contract is keyed off the verdict only. Spec §7.7 doesn't specify
-	// behaviour for `--review-out` write failure, so we treat it as a
-	// developer-facing diagnostic rather than a CI-grade contract. If a
-	// CI pipeline grows a hard dependency on the file existing, this is
-	// the place to flip to fail-loud (return an *exitCodeError{code: 1}
-	// instead of writing a note and falling through). Until that user
-	// shows up, the failure-tolerant shape avoids surprising scripted
-	// callers whose primary signal is the verdict.
+	// Soft-note-on-write-failure (deliberate choice): the exit-code
+	// contract is keyed off the verdict only. `--review-out` write
+	// failure is a developer-facing diagnostic rather than a CI-grade
+	// contract. If a CI pipeline grows a hard dependency on the file
+	// existing, this is the place to flip to fail-loud (return an
+	// *exitCodeError{code: 1} instead of writing a note and falling
+	// through). Until that user shows up, the failure-tolerant shape
+	// avoids surprising scripted callers whose primary signal is the
+	// verdict.
 	if flags.reviewOut != "" {
 		if err := writeReviewOut(flags.reviewOut, res); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "note: writing --review-out failed: %v\n", err)
@@ -512,7 +508,7 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 		}
 	}
 
-	// §7.5 exit code mapping.
+	// Exit code mapping by verdict.
 	switch res.Verdict {
 	case review.VerdictProblems:
 		return &exitCodeError{code: 2, msg: "claude review reported problems"}
@@ -524,9 +520,9 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 // writeReviewOut serialises a ReviewResult to JSON at path. For tier
 // 1/2 results, the natural ReviewResult shape is used (the `raw` field
 // is omitted via `omitempty` when empty). For tier 3 (unstructured),
-// the §7.7 sentinel shape is produced verbatim — `issues` is
-// guaranteed to be a JSON array (`[]`) even if the parsed value left it
-// nil, so consumers that always type the field as an array don't break.
+// the sentinel shape is produced verbatim — `issues` is guaranteed to
+// be a JSON array (`[]`) even if the parsed value left it nil, so
+// consumers that always type the field as an array don't break.
 func writeReviewOut(path string, res review.ReviewResult) error {
 	// Marshal in a stable shape. The struct already encodes verdict /
 	// summary / issues / raw via JSON tags; we just need to ensure
@@ -616,7 +612,7 @@ var isInteractive = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-// writeOutput implements the existing-file rules from spec §6:
+// writeOutput implements the existing-file rules:
 //   - error if target exists and !force
 //   - rename existing to CLAUDE.md.bak.<unix-ts> when force, then write
 //   - print backup path to stderr

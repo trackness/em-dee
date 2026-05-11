@@ -14,7 +14,7 @@ import (
 // indexDoc is the YAML DTO for `_index.yaml`. Kept private to the
 // package — callers consume the typed Category. Using a DTO with the
 // yaml.v3 decoder in `KnownFields(true)` (strict) mode catches schema
-// drift loudly per spec §9.1 and the Task 1.3 tradeoff note.
+// drift loudly (Task 1.3 tradeoff note).
 type indexDoc struct {
 	DisplayName string        `yaml:"display_name"`
 	Pick        string        `yaml:"pick"`
@@ -30,8 +30,8 @@ type optionEntry struct {
 	File        string `yaml:"file"`
 }
 
-// folderNamePattern matches a category folder name per spec §9.1:
-// two-digit prefix, dash, kebab body.
+// folderNamePattern matches a category folder name: two-digit
+// prefix, dash, kebab body.
 var folderNamePattern = regexp.MustCompile(`^[0-9]{2}-[a-z][a-z0-9-]*$`)
 
 // stripPrefix removes a leading `NN-` from a folder name. Returns the

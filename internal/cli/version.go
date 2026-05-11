@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// versionPayload is the JSON shape mandated by spec §12.6:
+// versionPayload is the JSON shape exposed by `em-dee version --json`:
 // {"version","commit","date","platform"}. Tooling consumers (notably
 // `em-dee update`) parse this, so the field names are part of the
 // CLI contract — additions go at the tail and deletions need a

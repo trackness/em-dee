@@ -10,15 +10,15 @@ import (
 	"strings"
 )
 
-// optionIDPattern is the kebab-id regex from spec §9.1.
+// optionIDPattern is the kebab-id regex applied to every option id.
 var optionIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // Validate walks a parsed Registry plus its source filesystem and
-// returns a joined error covering every hygiene rule from spec §9.1
-// that fails. `errors.Join` produces a multi-line error so a single
-// `task verify` run surfaces every problem at once rather than one
-// per cycle. Each wrapped error includes the offending path so the
-// noise is actionable.
+// returns a joined error covering every hygiene rule that fails.
+// `errors.Join` produces a multi-line error so a single `task verify`
+// run surfaces every problem at once rather than one per cycle. Each
+// wrapped error includes the offending path so the noise is
+// actionable.
 func Validate(reg *Registry, fsys fs.FS, root string) error {
 	var errs []error
 
@@ -211,11 +211,11 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 		} else if !info.IsDir() && info.Size() == 0 {
 			// Block files are concatenated by render.join with "\n\n"
 			// glue. A zero-byte block would produce a leading "\n\n"
-			// against its neighbour, breaking the §4.4 trailing-
-			// newline contract from the outside. Forbid the input
-			// shape rather than paper over it in the renderer:
-			// "filesystem is the schema" — if the block has no
-			// content, the option shouldn't be in the manifest.
+			// against its neighbour, breaking the trailing-newline
+			// contract from the outside. Forbid the input shape
+			// rather than paper over it in the renderer: "filesystem
+			// is the schema" — if the block has no content, the
+			// option shouldn't be in the manifest.
 			errs = append(errs, fmt.Errorf("%s: option %q references empty block file %s (zero bytes)", cat.Path, opt.ID, opt.File))
 		}
 	}
@@ -270,7 +270,7 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 	return errs
 }
 
-// validateLanguageCategory enforces spec §9.1's special rules for the
+// validateLanguageCategory enforces the special rules for the
 // language category: required: true, pick: single, no default, and
 // each option's `file:` is exactly `<opt.ID>/base.md`. The last rule
 // pins the implicit invariant that the walk relies on

@@ -9,19 +9,19 @@ import (
 // ResolveSelection converts a loose map of flag-style values into a
 // fully typed Picks. It is the single resolution entry point shared
 // between CLI flag handling and `selection.yaml` golden-fixture
-// loading (spec §9.2), so the two cannot drift.
+// loading, so the two cannot drift.
 //
 // Input shape:
 //
 //   - Key form: top-level category id (`infra`) or nested
 //     `<lang-id>.<category-id>` (`python.framework`), matching the
-//     dotted-reference grammar in spec §5.1.
+//     dotted-reference grammar.
 //   - Value form for single-pick: `string`. The empty string is
 //     "explicit none". A `[]string` for a single-pick category is a
 //     hard error.
 //   - Value form for multi-pick: `[]string` OR a comma-separated
-//     `string`. Cobra delivers multi-pick flags as plain strings
-//     under the plan §3.4 tradeoff (resolver = single source of truth
+//     `string`. Cobra delivers multi-pick flags as plain strings under
+//     the plan Task 3.4 tradeoff (resolver = single source of truth
 //     for multi-pick parsing), and golden fixtures pass `[]string`
 //     directly via yaml. Accept both; whitespace around csv entries
 //     is trimmed. An empty slice (or empty string for csv) is
@@ -54,7 +54,7 @@ func ResolveSelection(reg *Registry, m map[string]any) (Picks, error) {
 		if err != nil {
 			return Picks{}, fmt.Errorf("%s: %w", key, err)
 		}
-		// Required-empty is a hard error here per spec §5.1.
+		// Required-empty is a hard error here.
 		if cat.Required && isEmpty(val) {
 			return Picks{}, fmt.Errorf("%s: required category cannot be empty", key)
 		}
@@ -86,7 +86,7 @@ func buildKeyIndex(reg *Registry) map[string]*Category {
 // *Value of the right shape, enforcing both the type contract and
 // option-id validity against the category's options list. For
 // multi-pick, the output slice is normalised to registry declaration
-// order (spec §4.4 determinism) and de-duplicated.
+// order (the determinism rule) and de-duplicated.
 func resolveValue(cat *Category, raw any) (*Value, error) {
 	switch cat.Pick {
 	case PickSingle:

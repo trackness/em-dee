@@ -11,8 +11,8 @@ import "io/fs"
 const LanguageCategoryID = "language"
 
 // Pick is the cardinality of a category — either "single" (choose one
-// option) or "multi" (choose any subset, including none). Per spec
-// §4.2, only these two values are valid in an `_index.yaml`.
+// option) or "multi" (choose any subset, including none). Only these
+// two values are valid in an `_index.yaml`.
 type Pick string
 
 const (
@@ -37,7 +37,7 @@ type Option struct {
 // `templates/10-language` or `templates/10-language/python/20-logging`).
 // For Pick == PickSingle, Default (if non-empty) is an option ID; for
 // Pick == PickMulti, Default is a list of option IDs. The empty string
-// / nil Default means "no default" per spec §8.1.
+// / nil Default means "no default".
 //
 // Subcategories is populated only for the top-level `language`
 // category: it maps a language option ID to that language's ordered
@@ -74,8 +74,7 @@ type Registry struct {
 // Picks. Exactly one of Single or Multi is non-nil, matching the
 // owning category's Pick. Nil pointer = "unset" (default-eligible);
 // non-nil pointer to an empty value = "explicit none" (default
-// suppressed); non-nil pointer to a non-empty value = "chosen". See
-// spec §3.3 for the tri-state contract.
+// suppressed); non-nil pointer to a non-empty value = "chosen".
 type Value struct {
 	Single *string
 	Multi  *[]string
