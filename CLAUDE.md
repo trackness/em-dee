@@ -18,42 +18,67 @@ These are load-bearing. Every change in this repo is made under them.
 em-dee is a Go CLI that generates `CLAUDE.md` files for new projects
 from a curated, embedded catalog of opinionated markdown blocks. The
 authoritative design lives at
-`docs/superpowers/specs/2026-05-11-em-dee-design.md`. Read that before
-making non-trivial changes.
+`docs/superpowers/specs/2026-05-11-em-dee-design.md`. The implementation
+plan is at `docs/superpowers/plans/2026-05-11-em-dee-implementation.md`.
+Read the spec before making non-trivial changes.
 
 ## Mechanical recipes
 
-> This section will be filled in during implementation per §10.1 of the
-> design spec. Until the templates filesystem and the manifest hygiene
-> validator exist, recipes here would be premature.
-
-The shape these recipes will take, summarised from §10.1:
+The templates filesystem lives at `internal/registry/templates/`
+(inside the registry package because `//go:embed` cannot escape its
+package directory). Every category folder is named `NN-<id>` with a
+two-digit numeric prefix; that prefix dictates render order.
 
 - **Add an option** to an existing category: drop
-  `templates/<NN-cat>/<id>.md`, append one entry to that folder's
-  `_index.yaml`, run `task verify`.
-- **Add a new top-level category**: `mkdir templates/<NN-name>/`,
-  create `_index.yaml`, add `.md` files, run `task verify`.
-- **Add a new language**: `mkdir templates/10-language/<id>/`, create
-  `base.md`, register in `templates/10-language/_index.yaml`, add
-  nested sub-categories, run `task verify`.
-- **Reorder**: change the folder's `NN-` prefix; never edit `options`
-  list order to reorder.
+  `internal/registry/templates/<NN-cat>/<id>.md`, append one entry to
+  that folder's `_index.yaml` (`{id, display_name, description, file}`),
+  run `task verify`. The manifest hygiene validator will fail loudly
+  if the `.md` file is missing, the option id collides, the option
+  id isn't kebab, the file is zero bytes, or the `_index.yaml` is
+  malformed.
+- **Add a new top-level category**: `mkdir
+  internal/registry/templates/<NN-name>/`, create `_index.yaml` with
+  `display_name`, `pick: single|multi`, optional `default`, and at
+  least one `options` entry. Add the `.md` files. Run `task verify`.
+- **Add a new language**: `mkdir
+  internal/registry/templates/10-language/<id>/`, create `<id>/base.md`,
+  add the language to `internal/registry/templates/10-language/_index.yaml`
+  with `file: <id>/base.md`, add nested sub-categories using the
+  top-level-category recipe. Note: the language id must not collide
+  with any top-level category id (the validator enforces this).
+- **Reorder categories**: change the folder's `NN-` prefix. Do NOT
+  edit `options` list order to reorder.
+- **Update render output for a changed template**: edit the `.md`,
+  run `task golden-update` locally, inspect the diff in
+  `testdata/golden/*/expected.md` carefully, commit both the template
+  and the regenerated golden together.
 
 ## Anti-patterns
 
-> Also filled in during implementation. Summary from §10.1:
-
-- No frontmatter in `.md` files (metadata lives in `_index.yaml`).
-- No cross-category constraint rules in code (soft-trust the picker).
-- No reordering by editing `options` lists.
-- No language-specific content in cross-cutting blocks.
-- Never run `task golden-update` to fix a failing test in CI.
+- **No frontmatter** in `.md` block files. Metadata lives in
+  `_index.yaml`; duplicating it in frontmatter is forbidden.
+- **No cross-category constraint rules in code.** The picker
+  soft-trusts the user. Coupling-by-validation is what the spec
+  rejects; do not reintroduce it.
+- **No reordering by editing `_index.yaml` `options` lists.** Change
+  the folder's `NN-` prefix instead.
+- **No language-specific content in cross-cutting blocks.** A
+  Python-specific Dockerfile in `20-infra/` is the wrong shape. Move
+  it under the language subtree if it belongs there at all.
+- **Never run `task golden-update` to fix a failing CI test.** Run
+  it only after intentional template or render-logic changes,
+  locally, with the diff inspected before committing. The fixtures
+  are the regression net; blindly regenerating them removes the net.
+- **No language-id ↔ top-level-category-id collisions.** The `show`
+  resolver depends on disambiguation; the validator enforces it.
+- **No zero-byte `.md` block files.** Validator rejects them.
+- **No `--no-verify`, no force-push to `main`, no `--no-edit` on
+  rebase.**
 
 ## Git workflow
 
-- **`main` is always green.** Never push directly to `main` once CI
-  exists; until then, never push broken state.
+- **`main` is always green.** Every change goes through a PR with
+  review before merge; CI gates on top (Phase 6 onward).
 - **Every change lives on a feature branch.** Naming is required:
   - `feat/<short-slug>` — new functionality.
   - `fix/<short-slug>` — bug fix.
@@ -64,16 +89,34 @@ The shape these recipes will take, summarised from §10.1:
   - `style/<short-slug>` — formatting, comments, naming only.
 - One branch per task from the implementation plan, or per logical
   chunk if a task is large enough to warrant it.
-- Merge back to `main` only when the branch's success criterion (see
-  the plan) is met.
+- **PR review** by the `trackness-agents:pr-reviewer` subagent before
+  merge. Every review comment is addressed on the branch — either
+  the fix is pushed, or a reasoned reply is posted explaining why
+  the suggestion is YAGNI / out-of-scope. No dismissal.
+- **Squash merge** to keep `main` history one commit per logical
+  change. Feature branches preserved on origin (`--delete-branch=false`).
+- Use `gh` for GitHub-side operations (PR open, PR review, PR merge,
+  releases, branch protection, API queries). Reserve `git` for
+  local-only operations.
 
 ## Required commands
 
-- `task verify` before every commit.
-- `task build` for a local binary.
+- `task verify` before every commit. Runs `gofmt`, `go vet`,
+  `go test ./...`, manifest hygiene as part of the test suite.
+- `task build` for a local binary in `bin/em-dee`.
+- `task golden-update` to regenerate render fixtures (read the
+  anti-patterns first).
 
 ## Project state
 
-Currently: design phase complete, implementation pending. The spec is
-the contract. The implementation plan is at
-`docs/superpowers/plans/<date>-em-dee-implementation.md` once written.
+Implementation is in progress. The plan
+(`docs/superpowers/plans/2026-05-11-em-dee-implementation.md`) lists
+9 phases (0–8); merged squashes on `main` are the source of truth
+for what's complete. Use `git log --oneline origin/main` and the
+plan together to orient.
+
+Note: the templates filesystem at `internal/registry/templates/`
+ships with a `.gitkeep` only until Phase 7 lands the v1 catalog.
+The render-package tests use a separate fixture tree at
+`internal/render/testdata/templates/` so they're independent of
+catalog content drift.
