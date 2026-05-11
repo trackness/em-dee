@@ -109,10 +109,10 @@ two-digit numeric prefix; that prefix dictates render order.
 - `task build` for a local binary in `bin/em-dee`.
 - `task golden-update` to regenerate render fixtures (read the
   anti-patterns first).
-- `task release` shells out to `goreleaser release --clean` — only
-  use locally for snapshot testing (`goreleaser release --snapshot
-  --clean --skip=publish`). Real releases happen via
-  `.github/workflows/release.yml` on a `v*` tag push.
+- `task release` runs `goreleaser release --snapshot --clean
+  --skip=publish` — local snapshot build only, never publishes. Real
+  releases happen via `.github/workflows/release.yml` on a `v*` tag
+  push.
 
 ## Cutting a release
 

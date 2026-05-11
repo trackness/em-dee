@@ -30,9 +30,13 @@ tasks:
       - go build -o bin/em-dee ./cmd/em-dee
 
   release:
-    desc: Cut a release via goreleaser (requires .goreleaser.yaml from Phase 6).
+    desc: Local snapshot build via goreleaser (no publish; real releases run from .github/workflows/release.yml on a v* tag push).
     cmds:
-      - goreleaser release --clean
+      # --snapshot tolerates a dirty/untagged tree; --skip=publish keeps
+      # the run local; --clean wipes ./dist between runs. Real releases
+      # are published only by the GitHub release workflow — see
+      # CLAUDE.md "Cutting a release" for the contract.
+      - goreleaser release --snapshot --clean --skip=publish
 
   golden-update:
     desc: Regenerate golden fixtures from current render output (Phase 2+).
