@@ -98,6 +98,14 @@ func Parse(input []byte) (ReviewResult, error) {
 // legitimately return an empty summary on `verdict: "ok"`. We do
 // normalise nil `issues` to an empty slice so consumers can rely on
 // non-nil semantics.
+//
+// `DisallowUnknownFields` is deliberately NOT enabled: spec §7.2 does
+// not forbid extra fields, and accepting them gives Claude room to add
+// optional metadata (e.g. a `model` or `confidence` field in a future
+// prompt revision) without forcing all responses through the tier 3
+// fallback. The tier 3 path catches genuinely malformed responses
+// anyway, so the rejection-on-unknown choice would buy strictness at
+// the cost of brittleness.
 func tryStrict(input []byte) (ReviewResult, bool) {
 	var res ReviewResult
 	dec := json.NewDecoder(bytes.NewReader(input))

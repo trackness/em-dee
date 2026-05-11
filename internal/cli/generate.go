@@ -458,6 +458,11 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 			fmt.Fprintf(cmd.ErrOrStderr(), "note: claude review timed out after %s\n", timeout)
 		default:
 			fmt.Fprintln(cmd.ErrOrStderr(), "claude review failed:")
+			// Trailing-newline coalescing: the runner's stderr may or may
+			// not end with a newline. We always emit exactly one so the
+			// next stderr line ("note: ..." or shell prompt in dev) sits
+			// on its own line. Fprintln always appends \n, so we add one
+			// only when the captured stderr didn't end with one already.
 			if len(runnerStderr) > 0 {
 				cmd.ErrOrStderr().Write(runnerStderr)
 				if runnerStderr[len(runnerStderr)-1] != '\n' {
