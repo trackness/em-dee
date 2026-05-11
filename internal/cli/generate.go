@@ -310,6 +310,20 @@ func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, e
 	// Seed Picks with the chosen language and apply defaults so
 	// form 2's bound variables start pre-populated per spec §5.2
 	// paragraph 2.
+	//
+	// Ordering constraint (load-bearing): the language pick MUST be
+	// seeded into picks before ApplyDefaults is called. ApplyDefaults
+	// walks the chosen language's sub-category subtree only when
+	// `picks.Values[LanguageCategoryID]` is already set (see
+	// registry/defaults.go's chosenLang lookup). Moving the seed line
+	// below the ApplyDefaults call would silently drop every
+	// language-nested default from the `--use-defaults` interactive
+	// path — the form-2 sub-category bindings would come back empty
+	// and the user would see no pre-populated selections. The
+	// non-interactive path doesn't hit this because `--language` is
+	// parsed into the selection map before ResolveSelection runs;
+	// only the interactive path has the seed-then-default ordering
+	// exposed.
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(lang)
 	picks = registry.ApplyDefaults(picks, reg)
