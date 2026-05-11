@@ -255,8 +255,8 @@ em-dee                              # → interactive generate (default)
 em-dee generate                     # same, explicit
 em-dee generate \
   --language=python \
-  --python.framework=fastapi \
-  --python.logging=loguru \
+  --python-framework=fastapi \
+  --python-logging=loguru \
   --infra=docker,kubernetes \       # multi-pick: comma-separated
   --ci=github-actions \
   --out=./CLAUDE.md \
@@ -280,10 +280,17 @@ em-dee update --check
 
 - Top-level categories become long flags: `--<category-id>` (e.g.
   `--infra`, `--ci`).
-- Language-nested categories are namespaced by language id:
-  `--<lang-id>.<category-id>` (e.g. `--python.logging`,
-  `--go.framework`). This keeps each flag self-documenting and avoids
-  `--framework` meaning different things based on `--language`.
+- Language-nested categories are namespaced by language id with a
+  dash separator: `--<lang-id>-<category-id>` (e.g.
+  `--python-logging`, `--go-framework`). This keeps each flag
+  self-documenting and avoids `--framework` meaning different things
+  based on `--language`. **Why dashes, not dots**: pflag (cobra's
+  flag library) rejects `.` in long flag names — only the first dash
+  in the flag is treated as the namespace separator, so language ids
+  that themselves contain dashes (e.g. `typescript-node`) round-trip
+  cleanly. Internally the selection key passed to
+  `registry.ResolveSelection` is still the dotted form
+  `<lang-id>.<category-id>`.
 - Multi-pick categories accept comma-separated option ids.
 - Unknown option ids are a hard error.
 
@@ -291,12 +298,12 @@ em-dee update --check
 
 - Flag **omitted** from the command line → category remains `unset`
   (nil pointer). `ApplyDefaults` may fill it in.
-- Flag **present with a value** (`--python.logging=loguru`) → category
-  is set to the chosen option(s).
-- Flag **present with empty value** (`--python.logging=`) → category
-  is set to "explicitly empty" (the slice/pointer is non-nil but
-  carries no option). For optional categories this writes no block; for
-  required categories it is a hard error.
+- Flag **present with a value** (`--python-logging=loguru`) →
+  category is set to the chosen option(s).
+- Flag **present with empty value** (`--python-logging=`) →
+  category is set to "explicitly empty" (the slice/pointer is non-nil
+  but carries no option). For optional categories this writes no
+  block; for required categories it is a hard error.
 
 **cli ↔ registry hand-off**: the cobra layer collects flag state
 into a `map[string]any` (top-level category id or namespaced
@@ -628,6 +635,12 @@ fails `task verify` and CI.
 - Every other category has `required: false` in v1. (Forward-compat:
   the validator allows other categories to be `required: true`, but
   the catalog must not exercise it in v1.)
+- **No language option id may collide with a top-level category id.**
+  The `em-dee show` reference resolver (§5.1) disambiguates the
+  forms `<lang>.<cat>.<opt>` and `<cat>.<opt>` by asking "is the
+  first segment a known language id?". A language option `infra`
+  would silently shadow the existing `infra.docker` top-level form,
+  so the validator rejects the collision at load time.
 
 ### 9.2 Golden fixtures
 

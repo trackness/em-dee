@@ -313,6 +313,31 @@ options:
 			wantSubs: []string{"docker.md", "empty", "zero"},
 		},
 		{
+			// PR #4 review M2: a language option id that collides
+			// with a top-level category id (e.g. language option
+			// `infra` while the top-level `infra` category exists)
+			// breaks the `em-dee show` disambiguation rule. Pin the
+			// invariant at the validator.
+			name: "language option id collides with top-level category id",
+			mutate: func(m fstest.MapFS) {
+				m["templates/10-language/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "Language"
+pick: single
+required: true
+options:
+  - id: python
+    display_name: "Python"
+    description: "Python"
+    file: python/base.md
+  - id: infra
+    display_name: "Infra-as-a-language"
+    description: "Hypothetical collision"
+    file: infra/base.md
+`)}
+				m["templates/10-language/infra/base.md"] = &fstest.MapFile{Data: []byte("infra-lang\n")}
+			},
+			wantSubs: []string{"infra", "collides", "language"},
+		},
+		{
 			// M3 (review): the language option `file:` must be
 			// `<opt.ID>/base.md` — pin the invariant that `walk`
 			// silently depends on.

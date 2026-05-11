@@ -10,3 +10,7 @@ options:
     display_name: "Go"
     description: "Go"
     file: go/base.md
+  - id: typescript-node
+    display_name: "TypeScript (Node)"
+    description: "TypeScript on Node.js"
+    file: typescript-node/base.md

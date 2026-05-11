@@ -95,12 +95,12 @@ func TestLoad_ValidFixture_LanguageCategory(t *testing.T) {
 	if lang.DefaultSingle != "" {
 		t.Errorf("DefaultSingle = %q, want empty (language forbids default)", lang.DefaultSingle)
 	}
-	if got, want := len(lang.Options), 2; got != want {
+	if got, want := len(lang.Options), 3; got != want {
 		t.Fatalf("len(Options) = %d, want %d", got, want)
 	}
-	if lang.Options[0].ID != "python" || lang.Options[1].ID != "go" {
-		t.Errorf("option order = [%s, %s], want [python, go]",
-			lang.Options[0].ID, lang.Options[1].ID)
+	if lang.Options[0].ID != "python" || lang.Options[1].ID != "go" || lang.Options[2].ID != "typescript-node" {
+		t.Errorf("option order = [%s, %s, %s], want [python, go, typescript-node]",
+			lang.Options[0].ID, lang.Options[1].ID, lang.Options[2].ID)
 	}
 }
 

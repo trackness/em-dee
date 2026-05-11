@@ -1,13 +1,9 @@
 package cli
 
-import "fmt"
+import "os"
 
-// Execute is the single entrypoint from `cmd/em-dee/main.go`. Phase 3
-// replaces this stub with a full cobra command tree; the signature is
-// frozen now per spec §12.7 so the version-embedding shape is locked
-// in before later wiring.
-func Execute(version, commit, date string) {
-	_ = commit
-	_ = date
-	fmt.Printf("em-dee %s\n", version)
-}
+// exit is a seam over os.Exit so future tests can stub process exit
+// without driving real `go test` termination. Production callers go
+// through it; tests construct commands via NewRootCmd directly and
+// inspect returned errors instead.
+var exit = func(code int) { os.Exit(code) }

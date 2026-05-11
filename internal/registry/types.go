@@ -2,6 +2,14 @@ package registry
 
 import "io/fs"
 
+// LanguageCategoryID is the canonical id of the language category —
+// the only category in the schema that carries sub-categories. The
+// string was previously hardcoded across the CLI and registry
+// packages; centralising it here means a future rename (unlikely in
+// v1, but the spec doesn't forbid one) is a single edit, and the
+// references are grep-able by name.
+const LanguageCategoryID = "language"
+
 // Pick is the cardinality of a category — either "single" (choose one
 // option) or "multi" (choose any subset, including none). Per spec
 // §4.2, only these two values are valid in an `_index.yaml`.
@@ -104,4 +112,35 @@ type Picks struct {
 // NewPicks returns an empty Picks ready to receive values.
 func NewPicks() Picks {
 	return Picks{Values: map[string]*Value{}}
+}
+
+// FindCategory returns the top-level Category with the given id, or
+// nil if no such category exists. Centralised here so CLI consumers
+// (e.g. internal/cli/show.go's reference resolver) don't have to
+// duplicate the lookup loop locally.
+func (r *Registry) FindCategory(id string) *Category {
+	if r == nil {
+		return nil
+	}
+	for _, cat := range r.Categories {
+		if cat.ID == id {
+			return cat
+		}
+	}
+	return nil
+}
+
+// HasOption reports whether the category has an option with the
+// given id. Centralised here so CLI consumers (e.g. show.go) and the
+// resolver share one implementation.
+func (c *Category) HasOption(id string) bool {
+	if c == nil {
+		return false
+	}
+	for _, opt := range c.Options {
+		if opt.ID == id {
+			return true
+		}
+	}
+	return false
 }

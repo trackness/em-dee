@@ -1,0 +1,13 @@
+display_name: "Logging"
+pick: single
+required: false
+default: pino
+options:
+  - id: pino
+    display_name: "pino"
+    description: "Structured Node logger"
+    file: pino.md
+  - id: winston
+    display_name: "Winston"
+    description: "Winston Node logger"
+    file: winston.md
