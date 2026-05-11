@@ -530,14 +530,153 @@ The `review` package's external dependency (`claude` CLI) is abstracted
 behind an interface so tests can inject a fake. The default
 implementation shells out via `os/exec`.
 
-## 12. Distribution
+## 12. Build, release, install, update
 
-- **`goreleaser`** builds binaries for darwin/arm64, darwin/amd64,
-  linux/arm64, linux/amd64, windows/amd64.
-- **`go install github.com/<owner>/em-dee/cmd/em-dee@latest`** — for
-  users with a Go toolchain.
-- **Homebrew tap** — optional, configured via `goreleaser`. Decide at
-  release time, not in this spec.
+The full lifecycle is supported via the GitHub repository. No
+out-of-band artefact hosting; nothing the user has to set up beyond
+either a Go toolchain, Homebrew, or `curl`.
+
+### 12.1 GitHub repository
+
+Repo at `github.com/<owner>/em-dee`. The Go module path matches.
+
+- **Branch model**: `main` is the only long-lived branch. All work goes
+  through PRs; PRs run CI; merges require green CI. Branch protection
+  on `main` requires up-to-date and passing checks.
+- **Tags**: SemVer (`v0.1.0`, …). Pushing a `v*` tag triggers a release.
+- **Releases**: produced by `goreleaser` from a tag push. Each release
+  carries platform archives, a `checksums.txt`, and source tarballs.
+
+### 12.2 CI workflow — `.github/workflows/ci.yml`
+
+Triggers on every push and PR.
+
+- Checkout.
+- Set up Go (matrix: latest stable + N−1).
+- Cache Go modules.
+- `task verify` — runs `gofmt`, `go vet`, `go test ./...`, and the
+  manifest hygiene test (the hygiene test is just one of the Go tests,
+  so it falls out of `go test ./...`).
+- A parallel `lint` job runs `golangci-lint`.
+
+CI must be green for any merge to `main`.
+
+### 12.3 Release workflow — `.github/workflows/release.yml`
+
+Triggers on tag push matching `v*`.
+
+- Checkout with `fetch-depth: 0` (goreleaser requires full history).
+- Set up Go.
+- Run `goreleaser release --clean`.
+- Requires `GITHUB_TOKEN` (provided automatically by Actions); requires
+  `HOMEBREW_TAP_GITHUB_TOKEN` once the Homebrew tap is enabled.
+
+### 12.4 `.goreleaser.yaml`
+
+- **Builds**: darwin/arm64, darwin/amd64, linux/arm64, linux/amd64,
+  windows/amd64.
+- **ldflags** inject version metadata (see §12.7).
+- **Archives**: `tar.gz` for unix, `zip` for windows. Naming:
+  `em-dee_<version>_<os>_<arch>.<ext>`.
+- **Checksums**: SHA256 of every archive, published as
+  `checksums.txt`. The self-update path depends on this file existing
+  at a predictable URL inside each release.
+- **GitHub Release**: auto-created, with archives + checksums
+  attached. Release notes generated from commit history since the last
+  tag.
+- **Homebrew tap**: declared in the config but commented out until a
+  `homebrew-<owner>-tap` repo exists. Enabling is a one-line edit.
+
+### 12.5 Install paths
+
+The README documents all three with copy-pasteable commands.
+
+- **Go install** (any platform with Go):
+  ```
+  go install github.com/<owner>/em-dee/cmd/em-dee@latest
+  ```
+- **Direct download** (any platform; recommended for non-Go users):
+  ```
+  curl -fsSL \
+    https://github.com/<owner>/em-dee/releases/latest/download/em-dee_<os>_<arch>.tar.gz \
+    | tar -xz
+  ```
+- **Homebrew** (post-tap setup, macOS/Linux):
+  ```
+  brew install <owner>/tap/em-dee
+  ```
+
+### 12.6 Update mechanism
+
+em-dee ships with a self-update subcommand for users who installed via
+direct download. Users who installed via `go install` or `brew` are
+detected and redirected to the appropriate tool.
+
+- **`em-dee update`** — check GitHub Releases for the latest tag and,
+  if newer than the embedded build version, install it:
+  1. Fetch the latest release metadata via the GitHub API.
+  2. Download the platform-appropriate archive.
+  3. Download `checksums.txt`; verify the archive's SHA256.
+  4. Extract the binary into a temp file.
+  5. Atomically replace the running binary using
+     `github.com/minio/selfupdate` (or equivalent).
+  6. Print `updated <old version> → <new version>`.
+- **`em-dee update --check`** — print whether an update is available,
+  do not install. Exits 0 if up-to-date, 1 if an update exists.
+- **`em-dee version --json`** — prints version, commit, date, and
+  platform. Used by `update` and by tooling.
+
+**Install-method detection** (best-effort, via the path of the running
+executable):
+
+- Path under `${GOPATH}/bin/`, `${HOME}/go/bin/`, or `$(go env
+  GOBIN)` → suggest `go install
+  github.com/<owner>/em-dee/cmd/em-dee@latest`; refuse self-update.
+- Path under `/opt/homebrew/`, `/usr/local/Cellar/`,
+  `/home/linuxbrew/.linuxbrew/` → suggest `brew upgrade
+  <owner>/tap/em-dee`; refuse self-update.
+- Anything else → proceed with self-update.
+
+A `--force` override flag is **deferred to v2**.
+
+**Security**:
+
+- HTTPS-only for all downloads.
+- SHA256 verification against the release's `checksums.txt` is
+  mandatory. Mismatch aborts the update and leaves the existing binary
+  in place.
+- GPG / sigstore signature verification is **deferred to v2**. The v1
+  posture (HTTPS + SHA256 from a GitHub Release) is documented as the
+  baseline in `CLAUDE.md` so future maintainers know what to harden.
+
+**Failure modes**:
+
+- No network → `network unavailable; try again later`, exit non-zero.
+- Already on latest → `you are on the latest version (vX.Y.Z)`, exit 0.
+- Checksum mismatch → abort with a clear error; binary unchanged.
+- Insufficient permissions to overwrite binary → suggest re-running
+  with elevated permissions (`sudo` on unix), exit non-zero.
+- GitHub API rate-limited → suggest setting `GITHUB_TOKEN` env var,
+  exit non-zero.
+
+### 12.7 Version embedding
+
+`cmd/em-dee/main.go` declares:
+
+```go
+var (
+    version = "dev"
+    commit  = "none"
+    date    = "unknown"
+)
+```
+
+Populated at build time:
+
+- `goreleaser` sets these from the tag, commit, and build date.
+- Local `task build` injects `version=dev-<git-sha>` so manual builds
+  report something useful and the self-update path can compare
+  intelligibly.
 
 ## 13. v1 catalog (starting point)
 
@@ -583,10 +722,14 @@ compiles and tests pass before content is finalised.
 
 - Exact `.md` block content per option.
 - `.claude/settings.local.json` hook contents.
-- Whether to publish a Homebrew tap at first release.
+- Whether to publish a Homebrew tap at first release (tap repo
+  `homebrew-<owner>-tap` to be created when enabled).
 - Specific exit code for `verdict == "problems"`.
+- `--strict-review` flag (makes `warnings` also fail).
 - Module owner / GitHub org.
 - License selection.
+- `em-dee update --force` to override install-method detection.
+- GPG / sigstore signature verification on self-update.
 
 ## 16. Open questions
 
