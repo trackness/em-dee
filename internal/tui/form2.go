@@ -269,6 +269,20 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 // untouched and one that the user deliberately cleared look the
 // same to huh. Forcing them apart would mean adding a sentinel
 // option, which complicates the UI for no v1 benefit.
+//
+// Spec §3.3 tri-state interaction (PR #5 review L3): the registry
+// has three states — unset, explicit-empty, chosen. The interactive
+// path can only express two of them via this translation: a
+// non-empty MultiSelect maps to "chosen" and an empty MultiSelect
+// maps to "unset" (omitted from Picks, ApplyDefaults fills the
+// registry default). The "explicit-empty" state (defeating the
+// default for a multi-pick) is reachable only from the flag layer
+// (`--<cat>=` per spec §5.1) — interactive users who want zero blocks
+// from a defaulted multi-pick must exit and re-run with the empty
+// flag. This was a v1 scope call (no sentinel "explicit none" option
+// to keep the UI simple); a follow-up issue captures the question of
+// whether v2 should expose it. The flag layer remains the canonical
+// surface for explicit-empty.
 func (sf *SecondaryForm) Picks() registry.Picks {
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(sf.langID)

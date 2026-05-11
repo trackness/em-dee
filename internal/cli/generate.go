@@ -301,6 +301,17 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 // useDefaults=true skips form 2 entirely: form 1 still runs (language
 // has no default per spec §8.3), then ApplyDefaults fills in the
 // rest. This matches spec §5.3's "prompt only for language" wording.
+//
+// UX tradeoff (PR #5 review L2): the useDefaults=true path commits the
+// file immediately after the language pick — no confirm group, no
+// preview of what's about to be written. This is intentional per spec
+// §5.3 ("prompt only for language"); the safety net is spec §6's
+// existing-file rule, which still rejects a write over an existing
+// CLAUDE.md without --force. If users report the no-preview UX as
+// sharp in practice, the v2 move is to surface the render-order
+// summary as a final-line confirmation before the write rather than
+// re-adding the confirm group (which would put us on the path to
+// ignoring --use-defaults).
 func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, error) {
 	lang, err := tui.RunLanguageForm(reg)
 	if err != nil {
