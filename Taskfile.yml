@@ -14,6 +14,11 @@ tasks:
   verify:
     desc: Format-check, vet, and test the module.
     cmds:
+      # Asymmetry note: gofmt takes filesystem paths (so we pass `.`, the
+      # repo root, and let it recurse), while go vet takes Go package
+      # patterns (so we pass `./...`). Both forms are correct for their
+      # respective tools — gofmt does not accept Go package patterns —
+      # so resist the urge to "fix" the inconsistency.
       - |
         out=$(gofmt -l .)
         if [ -n "$out" ]; then
