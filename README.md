@@ -105,8 +105,9 @@ a small set of flags that control where and how the file is written:
 
 ## Claude review
 
-After writing `CLAUDE.md`, em-dee shells out to `claude -p` to review the
-generated file. This is opt-out via `--no-review`. Use
+After rendering the output, em-dee shells out to `claude -p` to review
+the rendered content (the in-memory byte slice — not the on-disk file
+at `--out`). This is opt-out via `--no-review`. Use
 `--review-out=<path>` to capture the structured JSON output:
 
 | Field     | Type              | Notes                                                                                                                  |
