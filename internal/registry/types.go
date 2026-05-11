@@ -39,8 +39,8 @@ type Category struct {
 	DisplayName   string
 	Pick          Pick
 	Required      bool
-	DefaultSingle string                 // populated when Pick == PickSingle and a default is set
-	DefaultMulti  []string               // populated when Pick == PickMulti and a default is set
+	DefaultSingle string                 // populated when Pick == PickSingle and a default is set; empty string = no default
+	DefaultMulti  []string               // populated when Pick == PickMulti and a default is set; nil or empty slice = no default
 	Options       []Option               // declaration order from `_index.yaml`
 	Subcategories map[string][]*Category // language-only: keyed by language option ID
 }
