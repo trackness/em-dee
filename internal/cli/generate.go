@@ -485,6 +485,16 @@ func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Op
 	// --review-out per §7.7. The on-disk shape differs slightly from
 	// the in-memory ReviewResult: tier 3 must produce the sentinel
 	// JSON exactly as §7.7 specifies (verdict / summary / raw / issues).
+	//
+	// Soft-note-on-write-failure (deliberate choice): the §7.5 exit-code
+	// contract is keyed off the verdict only. Spec §7.7 doesn't specify
+	// behaviour for `--review-out` write failure, so we treat it as a
+	// developer-facing diagnostic rather than a CI-grade contract. If a
+	// CI pipeline grows a hard dependency on the file existing, this is
+	// the place to flip to fail-loud (return an *exitCodeError{code: 1}
+	// instead of writing a note and falling through). Until that user
+	// shows up, the failure-tolerant shape avoids surprising scripted
+	// callers whose primary signal is the verdict.
 	if flags.reviewOut != "" {
 		if err := writeReviewOut(flags.reviewOut, res); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "note: writing --review-out failed: %v\n", err)
