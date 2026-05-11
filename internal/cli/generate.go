@@ -58,7 +58,6 @@ type generateFlags struct {
 // touches the templates filesystem — there are no per-category Go
 // edits required to expose a new flag.
 func newGenerateCmd(opts Options) *cobra.Command {
-	flags := &generateFlags{values: map[string]*string{}}
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate CLAUDE.md from flag-supplied picks",
@@ -68,14 +67,25 @@ func newGenerateCmd(opts Options) *cobra.Command {
 		// error in scripted use.
 		SilenceUsage:  true,
 		SilenceErrors: false,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			reg, err := resolveRegistry(opts)
-			if err != nil {
-				return err
-			}
-			return runGenerate(cmd, reg, flags)
-		},
 	}
+	registerGenerateFlagsAndRun(cmd, opts)
+	return cmd
+}
+
+// registerGenerateFlagsAndRun wires the generate flag set onto an
+// arbitrary *cobra.Command and installs the pipeline as its RunE. It
+// is the seam Task 3.5 uses to make the root command behave as
+// `generate` when invoked with no subcommand: the root gets the same
+// flags and the same RunE, so the two entrypoints are byte-equivalent
+// (the integration test `TestRoot_DefaultsToGenerate` locks this in).
+//
+// The flag-state struct lives in this closure so each command gets
+// its own state — sharing one across root and generate would mean a
+// flag set on root could leak into a subsequent generate invocation,
+// which cobra's child-vs-root flag resolution makes hard to reason
+// about. One generateFlags per command, period.
+func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
+	flags := &generateFlags{values: map[string]*string{}}
 
 	// Behaviour flags.
 	cmd.Flags().StringVar(&flags.out, "out", "CLAUDE.md", "path to write CLAUDE.md")
@@ -103,7 +113,13 @@ func newGenerateCmd(opts Options) *cobra.Command {
 		registerCategoryFlags(cmd.Flags(), reg, flags)
 	}
 
-	return cmd
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		reg, err := resolveRegistry(opts)
+		if err != nil {
+			return err
+		}
+		return runGenerate(cmd, reg, flags)
+	}
 }
 
 // registerCategoryFlags walks the registry and registers one

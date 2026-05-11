@@ -36,6 +36,7 @@ func NewRootCmd(opts Options) *cobra.Command {
 		Long: "em-dee generates CLAUDE.md files for new projects from a curated, " +
 			"embedded set of opinionated markdown blocks. Run without args for " +
 			"the interactive flow, or pass flags for non-interactive generation.",
+		Args: cobra.NoArgs,
 		// Subcommands set their own SilenceUsage/SilenceErrors as needed.
 		// Keep the root permissive so `--help` and `version` print
 		// cleanly without the usage footer on user-level errors.
@@ -46,6 +47,21 @@ func NewRootCmd(opts Options) *cobra.Command {
 	root.AddCommand(newListCmd(opts))
 	root.AddCommand(newShowCmd(opts))
 	root.AddCommand(newGenerateCmd(opts))
+
+	// Make `em-dee` (no subcommand) behave as `em-dee generate` per
+	// spec §5 — `em-dee` is the default flow. We re-register the
+	// generate flag set onto root and install its RunE; cobra dispatch
+	// then treats root and `generate` symmetrically. Each command keeps
+	// its own generateFlags state so root and the explicit `generate`
+	// subcommand cannot bleed values into each other.
+	//
+	// Tradeoff (per plan Task 3.5): an alternative is to set
+	// rootCmd.RunE = generateCmd.RunE and share one flag struct, but
+	// that ties the two together in subtle ways (e.g. cobra's flag
+	// inheritance from root → child) and complicates reasoning. The
+	// register-twice approach pays a tiny duplication cost in exchange
+	// for two cleanly isolated entrypoints.
+	registerGenerateFlagsAndRun(root, opts)
 
 	return root
 }
