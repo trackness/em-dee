@@ -1,0 +1,40 @@
+# Taskfile.yml — em-dee build/test/release entrypoints.
+#
+# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md (§10.2)
+# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md
+#
+# `task verify` is the pre-commit gate; `task build` produces the local
+# binary; `task release` and `task golden-update` are wired now but
+# depend on later phases (release pipeline in Phase 6, golden fixtures
+# in Phase 2) and will fail until those phases land.
+
+version: '3'
+
+tasks:
+  verify:
+    desc: Format-check, vet, and test the module.
+    cmds:
+      - |
+        out=$(gofmt -l .)
+        if [ -n "$out" ]; then
+          echo "gofmt found unformatted files:"
+          echo "$out"
+          exit 1
+        fi
+      - go vet ./...
+      - go test ./...
+
+  build:
+    desc: Build the local em-dee binary into ./bin/em-dee.
+    cmds:
+      - go build -o bin/em-dee ./cmd/em-dee
+
+  release:
+    desc: Cut a release via goreleaser (requires .goreleaser.yaml from Phase 6).
+    cmds:
+      - goreleaser release --clean
+
+  golden-update:
+    desc: Regenerate golden fixtures from current render output (Phase 2+).
+    cmds:
+      - GOLDEN_UPDATE=1 go test ./internal/render/...
