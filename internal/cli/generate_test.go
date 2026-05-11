@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
 
 // TestGenerate_DryRunHappyPath asserts that --language=python --use-defaults
@@ -183,6 +185,70 @@ func TestGenerate_DryRunSkipsExistenceCheck(t *testing.T) {
 	data, _ := os.ReadFile(out)
 	if string(data) != "preexisting\n" {
 		t.Errorf("dry-run modified the file: %q", string(data))
+	}
+}
+
+// TestGenerate_HyphenatedLanguageFlag is the regression test for the
+// flag-name → selection-key mapping. A language id that contains a
+// dash (e.g. `typescript-node`) must produce a flag like
+// `--typescript-node-logging` whose value lands under the dotted
+// selection key `typescript-node.logging`, not `typescript.node-logging`.
+// The mapping is recorded at registration time in `flags.selectionKey`,
+// not derived by scanning the flag name, so this passes by construction.
+func TestGenerate_HyphenatedLanguageFlag(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	root := NewRootCmd(Options{Registry: reg})
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{
+		"generate",
+		"--language=typescript-node",
+		"--typescript-node-logging=pino",
+		"--dry-run",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "TypeScript") {
+		t.Errorf("expected typescript-node base block in output:\n%s", out)
+	}
+	if !strings.Contains(out, "pino") {
+		t.Errorf("expected pino logging block in output:\n%s", out)
+	}
+}
+
+// TestGenerate_HyphenatedLanguageSelectionKeyMapping asserts the
+// flag-name → selection-key map directly, locking in the contract
+// that prevents the regression where the first dash was assumed to be
+// the namespace separator. Register category flags onto an isolated
+// flag set, then inspect the recorded map for the expected entries.
+func TestGenerate_HyphenatedLanguageSelectionKeyMapping(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	flags := &generateFlags{
+		values:       map[string]*string{},
+		selectionKey: map[string]string{},
+	}
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	registerCategoryFlags(fs, reg, flags)
+
+	cases := map[string]string{
+		"language":                "language",
+		"infra":                   "infra",
+		"python-framework":        "python.framework",
+		"python-logging":          "python.logging",
+		"typescript-node-logging": "typescript-node.logging",
+	}
+	for flagName, want := range cases {
+		got, ok := flags.selectionKey[flagName]
+		if !ok {
+			t.Errorf("selectionKey[%q] missing", flagName)
+			continue
+		}
+		if got != want {
+			t.Errorf("selectionKey[%q] = %q, want %q", flagName, got, want)
+		}
 	}
 }
 

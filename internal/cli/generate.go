@@ -31,9 +31,11 @@ import (
 // support dots in long flag names because dots collide with its
 // shorthand-grouping. We use dashes for namespaced flags (e.g.
 // `--python-framework` rather than `--python.framework`), but the
-// resolver still consumes dotted keys. The dash↔dot translation lives
-// in one place — flagKeyToSelectionKey — so future help text or
-// error messages can reverse it consistently.
+// resolver still consumes dotted keys. We never parse the flag name
+// back into a selection key — both halves are known at registration
+// time, so we record the mapping then and consult it at consumption
+// time. This makes hyphenated language ids (e.g. `typescript-node`)
+// round-trip by construction. See selectionKey below.
 type generateFlags struct {
 	out         string
 	force       bool
@@ -48,9 +50,17 @@ type generateFlags struct {
 
 	// values holds the raw string captured by each per-category flag.
 	// The map key is the flag's *registered name* (with dashes, see
-	// the flag-name tradeoff above). Convert via flagKeyToSelectionKey
-	// before handing to ResolveSelection.
+	// the flag-name tradeoff above).
 	values map[string]*string
+
+	// selectionKey maps a registered flag name (e.g. `python-framework`
+	// or `typescript-node-logging`) to the dotted selection key the
+	// resolver consumes (e.g. `python.framework`,
+	// `typescript-node.logging`). Built at flag-registration time in
+	// registerCategoryFlags where both halves are already known —
+	// avoids the parse-the-name-back ambiguity that breaks hyphenated
+	// language ids when the first dash isn't the namespace separator.
+	selectionKey map[string]string
 }
 
 // newGenerateCmd builds `em-dee generate`. The flag set is built
@@ -85,7 +95,10 @@ func newGenerateCmd(opts Options) *cobra.Command {
 // which cobra's child-vs-root flag resolution makes hard to reason
 // about. One generateFlags per command, period.
 func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
-	flags := &generateFlags{values: map[string]*string{}}
+	flags := &generateFlags{
+		values:       map[string]*string{},
+		selectionKey: map[string]string{},
+	}
 
 	// Behaviour flags.
 	cmd.Flags().StringVar(&flags.out, "out", "CLAUDE.md", "path to write CLAUDE.md")
@@ -127,12 +140,17 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 // names use dashes throughout per the flag-name format tradeoff.
 //
 // Each flag's bound pointer is stored in flags.values keyed by the
-// flag name; the build step pulls them out via flagKeyToSelectionKey.
+// flag name. flags.selectionKey records the parallel mapping from
+// flag name to the dotted selection-key the resolver consumes —
+// recorded at registration time where both halves are still
+// independently known, so hyphenated language ids (e.g.
+// `typescript-node`) round-trip correctly.
 func registerCategoryFlags(fs *pflag.FlagSet, reg *registry.Registry, flags *generateFlags) {
 	for _, cat := range reg.Categories {
 		flagName := cat.ID
 		v := new(string)
 		flags.values[flagName] = v
+		flags.selectionKey[flagName] = cat.ID
 		fs.StringVar(v, flagName, "", flagUsage(cat))
 
 		// Language gets its sub-categories registered with the
@@ -144,6 +162,7 @@ func registerCategoryFlags(fs *pflag.FlagSet, reg *registry.Registry, flags *gen
 					subFlagName := opt.ID + "-" + sub.ID
 					sv := new(string)
 					flags.values[subFlagName] = sv
+					flags.selectionKey[subFlagName] = opt.ID + "." + sub.ID
 					fs.StringVar(sv, subFlagName, "", flagUsage(sub))
 				}
 			}
@@ -173,29 +192,6 @@ func flagUsage(cat *registry.Category) string {
 		cat.DisplayName, cat.Pick, def, strings.Join(ids, "|"))
 }
 
-// flagKeyToSelectionKey translates a flag name into the selection-key
-// shape registry.ResolveSelection consumes. Top-level keys are
-// unchanged; namespaced keys flip the first dash to a dot so
-// `python-framework` becomes `python.framework`.
-//
-// We only flip the first dash. Sub-category ids may contain dashes
-// themselves (e.g. `typescript-node`), but our schema requires the
-// top-level language id to be the first segment, so the leftmost dash
-// is unambiguously the namespace separator. For top-level categories
-// (no namespace), the value is returned unchanged.
-//
-// `topLevelIDs` is consulted so we never flip a top-level category
-// that contains a dash (none in v1, but defensive).
-func flagKeyToSelectionKey(flagName string, topLevelIDs map[string]bool) string {
-	if topLevelIDs[flagName] {
-		return flagName
-	}
-	if i := strings.Index(flagName, "-"); i != -1 {
-		return flagName[:i] + "." + flagName[i+1:]
-	}
-	return flagName
-}
-
 // runGenerate is the actual pipeline. Separating it from the cobra
 // closure keeps RunE small and lets tests poke individual stages
 // later if needed.
@@ -204,17 +200,12 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	// (Changed()==true). This is the tri-state seam: an unchanged
 	// flag is "unset" (omitted from the map); a changed flag with
 	// any value (including empty) becomes an entry.
-	topLevelIDs := map[string]bool{}
-	for _, cat := range reg.Categories {
-		topLevelIDs[cat.ID] = true
-	}
-
 	selection := map[string]any{}
 	cmd.Flags().Visit(func(f *pflag.Flag) {
-		if _, ok := flags.values[f.Name]; !ok {
+		key, ok := flags.selectionKey[f.Name]
+		if !ok {
 			return // behaviour flag, not a category flag
 		}
-		key := flagKeyToSelectionKey(f.Name, topLevelIDs)
 		selection[key] = f.Value.String()
 	})
 
