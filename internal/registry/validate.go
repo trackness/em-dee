@@ -30,6 +30,15 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 		errs = append(errs, dirErr...)
 	}
 
+	// Cross-category invariant: no language option id may collide
+	// with a top-level category id. The `em-dee show` resolver
+	// disambiguates `<lang>.<cat>.<opt>` vs `<cat>.<opt>` by asking
+	// "is the first segment a known language id?". A future language
+	// id `infra` would silently shadow the existing `infra.docker`
+	// top-level form, so pin the invariant at load time. See
+	// internal/cli/show.go's disambiguation rule for the consumer.
+	errs = append(errs, validateLanguageCategoryIDCollisions(reg)...)
+
 	// Per-category checks.
 	for _, cat := range reg.Categories {
 		errs = append(errs, validateCategory(cat, fsys)...)
@@ -61,6 +70,32 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateLanguageCategoryIDCollisions enforces "no language option id
+// equals any top-level category id" — the invariant the `em-dee show`
+// disambiguation rule depends on. Returns a slice of errors so the
+// caller can fold them into the joined error like the rest of the
+// hygiene checks.
+func validateLanguageCategoryIDCollisions(reg *Registry) []error {
+	var errs []error
+	var langCat *Category
+	topLevelIDs := map[string]bool{}
+	for _, cat := range reg.Categories {
+		topLevelIDs[cat.ID] = true
+		if cat.ID == "language" {
+			langCat = cat
+		}
+	}
+	if langCat == nil {
+		return nil
+	}
+	for _, opt := range langCat.Options {
+		if topLevelIDs[opt.ID] {
+			errs = append(errs, fmt.Errorf("%s: language option id %q collides with top-level category id %q (would break show's disambiguation rule)", langCat.Path, opt.ID, opt.ID))
+		}
+	}
+	return errs
 }
 
 // validateCategoryFolderNames asserts every direct-child directory of

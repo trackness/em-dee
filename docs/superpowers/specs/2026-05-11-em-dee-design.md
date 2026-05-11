@@ -635,6 +635,12 @@ fails `task verify` and CI.
 - Every other category has `required: false` in v1. (Forward-compat:
   the validator allows other categories to be `required: true`, but
   the catalog must not exercise it in v1.)
+- **No language option id may collide with a top-level category id.**
+  The `em-dee show` reference resolver (§5.1) disambiguates the
+  forms `<lang>.<cat>.<opt>` and `<cat>.<opt>` by asking "is the
+  first segment a known language id?". A language option `infra`
+  would silently shadow the existing `infra.docker` top-level form,
+  so the validator rejects the collision at load time.
 
 ### 9.2 Golden fixtures
 
