@@ -16,11 +16,7 @@ These are load-bearing. Every change in this repo is made under them.
 ## What this repo is
 
 em-dee is a Go CLI that generates `CLAUDE.md` files for new projects
-from a curated, embedded catalog of opinionated markdown blocks. The
-authoritative design lives at
-`docs/superpowers/specs/2026-05-11-em-dee-design.md`. The implementation
-plan is at `docs/superpowers/plans/2026-05-11-em-dee-implementation.md`.
-Read the spec before making non-trivial changes.
+from a curated, embedded catalog of opinionated markdown blocks.
 
 ## Mechanical recipes
 
@@ -87,8 +83,7 @@ two-digit numeric prefix; that prefix dictates render order.
   - `refactor/<short-slug>` — internal restructuring with no external
     behaviour change.
   - `style/<short-slug>` — formatting, comments, naming only.
-- One branch per task from the implementation plan, or per logical
-  chunk if a task is large enough to warrant it.
+- One branch per logical chunk of work.
 - **PR review** by the `trackness-agents:pr-reviewer` subagent before
   merge. Every review comment is addressed on the branch — either
   the fix is pushed, or a reasoned reply is posted explaining why
@@ -153,18 +148,12 @@ seam to `Options` rather than reaching out to package globals or
 `os.Exit` directly. The pattern is uniform across the package and
 tests are the only consumer.
 
-## Project state
+## Templates filesystem
 
-Implementation is in progress. The plan
-(`docs/superpowers/plans/2026-05-11-em-dee-implementation.md`) lists
-9 phases (0–8); merged squashes on `main` are the source of truth
-for what's complete. Use `git log --oneline origin/main` and the
-plan together to orient.
-
-Note: the templates filesystem at `internal/registry/templates/`
-holds the v1 catalog scaffold from Phase 7.1 — every option's `.md`
-block carries an HTML `TODO` marker pointing at spec §13 until
-Phase 7.2 lands finalised content per language. The render-package
-tests use a separate fixture tree at
+`internal/registry/templates/` carries the catalog. Every option's
+`.md` block is currently a TODO stub — a TODO HTML comment plus a
+one-line placeholder summary, NOT a zero-byte file (the validator
+rejects those). Finalised content lands per language. The
+render-package tests use a separate fixture tree at
 `internal/render/testdata/templates/` so they're independent of
 catalog content drift.

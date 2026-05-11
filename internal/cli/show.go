@@ -9,8 +9,7 @@ import (
 	"github.com/trackness/em-dee/internal/registry"
 )
 
-// newShowCmd builds `em-dee show <ref>` per spec §5.1's dotted-ref
-// grammar.
+// newShowCmd builds `em-dee show <ref>` for the dotted-ref grammar.
 //
 // Reference forms (resolved left-to-right against the registry, not by
 // string-manipulating filesystem paths):

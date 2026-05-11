@@ -15,7 +15,7 @@ import (
 // the production embedded one.
 //
 // Version, Commit, Date flow in from `cmd/em-dee/main.go` via the
-// ldflags-populated `version`/`commit`/`date` variables (spec §12.7).
+// ldflags-populated `version`/`commit`/`date` variables.
 //
 // Registry is normally nil — the command tree calls `registry.Load()`
 // lazily so that subcommands which do not touch the catalog (e.g.
@@ -81,11 +81,11 @@ func NewRootCmd(opts Options) *cobra.Command {
 	root.AddCommand(newGenerateCmd(opts))
 	root.AddCommand(newUpdateCmd(opts))
 
-	// Make `em-dee` (no subcommand) behave as `em-dee generate` per
-	// spec §5 — `em-dee` is the default flow. We re-register the
-	// generate flag set onto root and install its RunE; cobra dispatch
-	// then treats root and `generate` symmetrically. Each command keeps
-	// its own generateFlags state so root and the explicit `generate`
+	// Make `em-dee` (no subcommand) behave as `em-dee generate` —
+	// `em-dee` is the default flow. We re-register the generate flag
+	// set onto root and install its RunE; cobra dispatch then treats
+	// root and `generate` symmetrically. Each command keeps its own
+	// generateFlags state so root and the explicit `generate`
 	// subcommand cannot bleed values into each other.
 	//
 	// Tradeoff (per plan Task 3.5): an alternative is to set
@@ -100,13 +100,13 @@ func NewRootCmd(opts Options) *cobra.Command {
 }
 
 // Execute is the single entrypoint from `cmd/em-dee/main.go`. The
-// signature is frozen per spec §12.7 so the version-embedding shape
-// stays stable across phases.
+// signature is frozen so the version-embedding shape stays stable
+// across phases.
 //
 // Exit code mapping: subcommands that need a non-1 exit code (notably
-// `em-dee update --check`'s 0/1/2 three-state from spec §12.6)
-// return an *exitCodeError; Execute unwraps it. All other errors map
-// to exit code 1.
+// `em-dee update --check`'s 0/1/2 three-state) return an
+// *exitCodeError; Execute unwraps it. All other errors map to exit
+// code 1.
 func Execute(version, commit, date string) {
 	root := NewRootCmd(Options{
 		Version: version,

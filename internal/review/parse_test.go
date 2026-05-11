@@ -108,8 +108,8 @@ func TestParse_PreambleFallsToTier2(t *testing.T) {
 
 // TestParse_MalformedJSONFallsToTier3 asserts that totally-broken JSON
 // surfaces as the "unstructured" sentinel verdict with the raw input
-// preserved, and Parse itself does not return an error — the spec §7.3
-// contract is "always best-effort, never fail the file write".
+// preserved, and Parse itself does not return an error — the contract
+// is "always best-effort, never fail the file write".
 func TestParse_MalformedJSONFallsToTier3(t *testing.T) {
 	t.Parallel()
 	raw := readFixture(t, "malformed.txt")
@@ -178,8 +178,8 @@ func TestParse_InvalidSeverityFallsToTier3(t *testing.T) {
 
 // TestParse_NullIssuesNormalisedToEmpty asserts that a `null` issues
 // field (which JSON unmarshal would leave as a nil slice) is treated
-// the same as an empty array. Spec §7.2 says issues "may be empty";
-// nil and [] should look identical to consumers.
+// the same as an empty array. The issues array may be empty; nil and
+// [] should look identical to consumers.
 func TestParse_NullIssuesNormalisedToEmpty(t *testing.T) {
 	t.Parallel()
 	got, err := Parse([]byte(`{"verdict":"ok","summary":"ok","issues":null}`))

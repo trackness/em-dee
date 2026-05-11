@@ -6,7 +6,7 @@ import (
 )
 
 // TestSuccessLine_Shape asserts SuccessLine produces a string matching
-// the §5.2 step 7 contract — path, block count, KB-to-two-decimals.
+// the success-line contract — path, block count, KB-to-two-decimals.
 // We don't pin ANSI escape codes because lipgloss varies them by
 // terminal-capability detection during the test run; the substring
 // checks are sufficient to catch regressions in the format string.
@@ -49,18 +49,17 @@ func TestStyles_Render(t *testing.T) {
 	}
 }
 
-// TestSeverityInfo_IsNeutral pins the §7.4 "neutral info" contract:
+// TestSeverityInfo_IsNeutral pins the "neutral info" contract:
 // SeverityInfo.Render(s) returns s byte-equal — no ANSI, no padding,
 // no width transforms. The zero-style is deliberate (see styles.go).
 // A future PR that accidentally adds a foreground colour to
-// SeverityInfo would fail this test; deliberate changes must update
-// the spec first.
+// SeverityInfo would fail this test.
 func TestSeverityInfo_IsNeutral(t *testing.T) {
 	t.Parallel()
 
 	for _, s := range []string{"info", "", "multi line\nstring", "with-symbols-✓"} {
 		if got := SeverityInfo.Render(s); got != s {
-			t.Errorf("SeverityInfo.Render(%q) = %q; want byte-equal (§7.4 'neutral')", s, got)
+			t.Errorf("SeverityInfo.Render(%q) = %q; want byte-equal ('neutral')", s, got)
 		}
 	}
 }

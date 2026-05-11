@@ -1,7 +1,7 @@
 # No optional picks: language is set, every optional category is
 # explicit-none ("" for single, [] for multi). Defaults are
-# suppressed (per spec §3.3 explicit-none beats default), so the
-# rendered output contains only the language base block.
+# suppressed (explicit-none beats default), so the rendered output
+# contains only the language base block.
 language: python
 python.framework: ""
 python.logging: ""

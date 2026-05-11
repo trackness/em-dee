@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 )
 
-// Verdict is the overall assessment value from spec §7.2's enum, plus
-// the §7.7 sentinel `"unstructured"` that the parser emits when none of
-// tier 1 / tier 2 succeed.
+// Verdict is the overall assessment value, plus the sentinel
+// `"unstructured"` that the parser emits when none of tier 1 / tier 2
+// succeed.
 //
-// Spec §7.2: claude only ever sends one of the three real verdicts.
-// §7.7: the sentinel is introduced by em-dee's tier 3 fallback so the
-// presentation and `--review-out` layers can branch on it without
+// Claude only ever sends one of the three real verdicts. The
+// `unstructured` sentinel is introduced by em-dee's tier 3 fallback so
+// the presentation and `--review-out` layers can branch on it without
 // special-casing nil values.
 type Verdict string
 
@@ -22,7 +22,7 @@ const (
 	VerdictUnstructured Verdict = "unstructured"
 )
 
-// Severity is the per-issue severity enum from spec §7.2.
+// Severity is the per-issue severity enum.
 type Severity string
 
 const (
@@ -31,7 +31,7 @@ const (
 	SeverityError   Severity = "error"
 )
 
-// Issue mirrors one entry in the §7.2 `issues` array.
+// Issue mirrors one entry in the response `issues` array.
 type Issue struct {
 	Severity   Severity `json:"severity"`
 	Location   string   `json:"location"`
@@ -40,7 +40,7 @@ type Issue struct {
 }
 
 // ReviewResult is what Parse returns. On tier 1 or 2 it carries the
-// fully populated fields per spec §7.2; on tier 3 it carries the
+// fully populated fields; on tier 3 it carries the
 // `VerdictUnstructured` sentinel plus the raw input in `Raw` so the
 // presentation and `--review-out` layers can branch on it.
 type ReviewResult struct {
@@ -53,15 +53,15 @@ type ReviewResult struct {
 }
 
 // Parse turns the runner's stdout bytes (after envelope unwrapping)
-// into a typed ReviewResult. Three tiers per spec §7.3:
+// into a typed ReviewResult. Three tiers:
 //
 //  1. Strict — json.Unmarshal against the full schema, then validate
 //     enum membership. Success → return the result.
 //  2. Lenient — find the first `{` and last `}` in the input, re-parse.
 //     Catches markdown-fenced or preamble-wrapped responses.
 //  3. Fallback — return a ReviewResult with VerdictUnstructured and
-//     Raw == input. Never errors; the CLI maps tier 3 to exit 0 per
-//     spec §7.5 (review is best-effort).
+//     Raw == input. Never errors; the CLI maps tier 3 to exit 0
+//     because review is best-effort.
 //
 // The function never returns a non-nil error. Plan Task 5.3's design
 // call (locked in by TestParse_UnknownVerdictFallsToTier3) is that tier
@@ -90,7 +90,7 @@ func Parse(input []byte) (ReviewResult, error) {
 // it returns (result, true); on any parse or validation failure it
 // returns (zero, false).
 //
-// Validation rules (spec §7.2):
+// Validation rules:
 //   - verdict must be one of "ok" / "warnings" / "problems".
 //   - each issue's severity must be one of "info" / "warning" / "error".
 //
@@ -99,8 +99,8 @@ func Parse(input []byte) (ReviewResult, error) {
 // normalise nil `issues` to an empty slice so consumers can rely on
 // non-nil semantics.
 //
-// `DisallowUnknownFields` is deliberately NOT enabled: spec §7.2 does
-// not forbid extra fields, and accepting them gives Claude room to add
+// `DisallowUnknownFields` is deliberately NOT enabled: extra fields
+// aren't forbidden, and accepting them gives Claude room to add
 // optional metadata (e.g. a `model` or `confidence` field in a future
 // prompt revision) without forcing all responses through the tier 3
 // fallback. The tier 3 path catches genuinely malformed responses
@@ -136,9 +136,9 @@ func tryStrict(input []byte) (ReviewResult, bool) {
 // last `}` inclusive. Returns (nil, false) if either anchor is missing
 // or they're in the wrong order.
 //
-// This is documented as best-effort per spec §7.3: a JSON object with
-// a literal `{` or `}` inside a quoted string could mis-anchor the
-// extraction. Tier 3 catches anything that survives.
+// This is best-effort: a JSON object with a literal `{` or `}` inside
+// a quoted string could mis-anchor the extraction. Tier 3 catches
+// anything that survives.
 func lenientExtract(input []byte) ([]byte, bool) {
 	first := bytes.IndexByte(input, '{')
 	last := bytes.LastIndexByte(input, '}')

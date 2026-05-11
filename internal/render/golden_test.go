@@ -26,7 +26,7 @@ const goldenRoot = "../../testdata/golden"
 // assertion is replaced with a write so `task golden-update` can
 // regenerate fixtures in-place.
 //
-// Anti-drift guarantee (spec §9.2): the only resolution path is
+// Anti-drift guarantee: the only resolution path is
 // `registry.ResolveSelection`. If the CLI ever drifts to a different
 // resolution shape, this test starts failing before the drift can
 // land — golden fixtures and CLI inputs share one code path by
@@ -76,10 +76,10 @@ func runGoldenScenario(t *testing.T, reg *registry.Registry, dir string, update 
 	}
 
 	// The selection.yaml dotted-key shape is the same map ResolveSelection
-	// expects — see spec §9.2. yaml.v3 decodes scalars to string and
-	// sequences to []interface{}; coerce sequences to []string so
-	// ResolveSelection's `[]string` branch fires (rather than its
-	// fallback "expected string or list" error).
+	// expects. yaml.v3 decodes scalars to string and sequences to
+	// []interface{}; coerce sequences to []string so ResolveSelection's
+	// `[]string` branch fires (rather than its fallback "expected string
+	// or list" error).
 	var raw map[string]any
 	if err := yaml.Unmarshal(rawSel, &raw); err != nil {
 		t.Fatalf("parse %s: %v", selectionPath, err)

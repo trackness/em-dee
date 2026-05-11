@@ -42,13 +42,13 @@ func TestPromptTemplate_SchemaMarkers(t *testing.T) {
 		}
 	}
 
-	// Verdict enum (spec §7.2).
+	// Verdict enum.
 	for _, marker := range []string{`"ok"`, `"warnings"`, `"problems"`} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("prompt missing verdict enum value %s", marker)
 		}
 	}
-	// Severity enum (spec §7.2).
+	// Severity enum.
 	for _, marker := range []string{`"info"`, `"warning"`, `"error"`} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("prompt missing severity enum value %s", marker)

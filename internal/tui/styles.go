@@ -4,17 +4,17 @@
 // the visual contract auditable in one read and avoids style drift
 // across packages.
 //
-// Per spec §7.4, review presentation uses verdict markers and severity
-// colors that are declared here even though the consuming code lands
-// in Phase 5 — having the styles in place now lets the success line
-// of Phase 4 share the same lipgloss bootstrapping.
+// Review presentation uses verdict markers and severity colors that
+// are declared here even though the consuming code lands in Phase 5 —
+// having the styles in place now lets the success line of Phase 4
+// share the same lipgloss bootstrapping.
 //
-// **Lipgloss version tradeoff**: spec §3.1 names
-// `github.com/charmbracelet/lipgloss`, but huh v2 (charm.land/huh/v2)
-// transitively requires `charm.land/lipgloss/v2`. To avoid carrying
-// two lipgloss copies in the module graph we use the v2 namespace
-// here. Functionally equivalent for our usage; surfaced in the commit
-// body for Task 4.1.
+// **Lipgloss version tradeoff**: huh v2 (charm.land/huh/v2)
+// transitively requires `charm.land/lipgloss/v2` rather than the
+// charmbracelet/lipgloss namespace. To avoid carrying two lipgloss
+// copies in the module graph we use the v2 namespace here.
+// Functionally equivalent for our usage; surfaced in the commit body
+// for Task 4.1.
 
 package tui
 
@@ -24,7 +24,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// SuccessLine renders the post-write summary line per spec §5.2 step 7:
+// SuccessLine renders the post-write summary line:
 // `wrote CLAUDE.md (N blocks, N.NN KB)`. The whole line is rendered
 // in a muted green so it stands out from any preceding stderr noise
 // but doesn't shout. The byte count is reported as KB to two decimals.
@@ -34,9 +34,9 @@ func SuccessLine(path string, blocks int, byteCount int) string {
 	return successLineStyle.Render(body)
 }
 
-// Verdict / severity styles per spec §7.4 — exported for the Phase 5
-// review-presentation code. The colors are ANSI 256-color codes so
-// they degrade gracefully on terminals without truecolor.
+// Verdict / severity styles — exported for the Phase 5 review-
+// presentation code. The colors are ANSI 256-color codes so they
+// degrade gracefully on terminals without truecolor.
 var (
 	// successLineStyle is the muted green used by SuccessLine.
 	successLineStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
@@ -51,19 +51,18 @@ var (
 	// verdict:"problems".
 	VerdictProblem = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
 
-	// SeverityInfo / Warning / Error per spec §7.4 ("info=neutral,
-	// warning=yellow, error=red"). Placeholders for Phase 5; exposed
-	// now so the styles live in one file.
+	// SeverityInfo / Warning / Error: info=neutral, warning=yellow,
+	// error=red. Placeholders for Phase 5; exposed now so the styles
+	// live in one file.
 	//
 	// SeverityInfo intent (PR #5 review question): the zero-foreground
-	// style is **deliberate**, not an oversight — spec §7.4 names info
-	// as "neutral", which the lipgloss render path passes through as
-	// the terminal's default foreground. The Phase 5 consumer
-	// (ultraviolet renderer or otherwise) should treat
-	// `SeverityInfo.Render(s) == s` as the contract: any visible
-	// adornment (e.g. a glyph) belongs to the consumer, not the style.
-	// If a future Phase 5 change needs a non-empty info color, update
-	// the spec first and then this declaration.
+	// style is **deliberate**, not an oversight — info is "neutral",
+	// which the lipgloss render path passes through as the terminal's
+	// default foreground. The Phase 5 consumer (ultraviolet renderer
+	// or otherwise) should treat `SeverityInfo.Render(s) == s` as the
+	// contract: any visible adornment (e.g. a glyph) belongs to the
+	// consumer, not the style. If a future change needs a non-empty
+	// info color, revisit this declaration.
 	SeverityInfo    = lipgloss.NewStyle()
 	SeverityWarning = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	SeverityError   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))

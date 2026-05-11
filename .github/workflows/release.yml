@@ -1,12 +1,9 @@
 # Release workflow — em-dee.
 #
-# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.3
-# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.3
-#
 # Triggers on any `v*` tag push. The tag itself is the release gate —
 # only people with push-tag permission on the repo can cut a release.
 # Branch protection on main + green CI is the pre-condition; the tag
-# is cut against a green commit on main per spec §12.1.
+# is cut against a green commit on main.
 name: Release
 
 on:
@@ -25,20 +22,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # goreleaser needs full history to compute the changelog
-          # between the previous tag and the current one (spec §12.3).
+          # between the previous tag and the current one.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: true
 
       - name: goreleaser release
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           # Match the locally-tested version. Bumping is a one-line edit
           # that should be paired with a `goreleaser check` against the
@@ -51,7 +48,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # HOMEBREW_TAP_GITHUB_TOKEN is not yet required: the `brews:`
           # block in .goreleaser.yaml is commented out until the
-          # homebrew-trackness-tap repo exists (spec §12.4). Once the
-          # tap is enabled, uncomment the env line below and add the
-          # secret in the repo settings.
+          # `trackness/homebrew-tap` repo exists. Once the tap is
+          # enabled, uncomment the env line below and add the secret
+          # in the repo settings.
           # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

@@ -8,7 +8,7 @@ import (
 )
 
 // Render concatenates the chosen block files into a single CLAUDE.md
-// payload, walking the registry in render order per spec §4.4:
+// payload, walking the registry in render order:
 //
 //	templates/10-language/<lang>/base.md
 //	templates/10-language/<lang>/<NN-sub>/<chosen>.md   (each sub-cat)
@@ -23,9 +23,8 @@ import (
 // output is empty.
 //
 // Multi-pick ordering is always manifest order regardless of the
-// order options appear in `picks`; this locks in the §4.4
-// determinism contract so equivalent selections produce byte-equal
-// output.
+// order options appear in `picks`; this locks in the determinism
+// contract so equivalent selections produce byte-equal output.
 //
 // Errors:
 //   - unknown option id in picks → error. `ResolveSelection` is the
@@ -99,8 +98,8 @@ func renderLanguage(reg *registry.Registry, langCat *registry.Category, picks re
 // renderCategory emits the chosen block(s) for one category. Returns
 // nil (no blocks) for unset / explicit-none. For multi-pick, options
 // are emitted in manifest declaration order regardless of the order
-// the caller wrote them in `picks` — this is the §4.4 determinism
-// rule, locked in by TestRender_MultiPickDeterminism.
+// the caller wrote them in `picks` — the determinism rule, locked in
+// by TestRender_MultiPickDeterminism.
 func renderCategory(reg *registry.Registry, cat *registry.Category, v *registry.Value) ([][]byte, error) {
 	if v == nil {
 		return nil, nil // unset

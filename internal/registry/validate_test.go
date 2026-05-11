@@ -57,9 +57,9 @@ func TestValidate_CleanBaseline(t *testing.T) {
 	}
 }
 
-// TestValidate_Rules drives one row per hygiene rule from spec §9.1.
-// Each row mutates the baseline MapFS, runs load(), and asserts the
-// returned error contains the expected substring.
+// TestValidate_Rules drives one row per hygiene rule. Each row
+// mutates the baseline MapFS, runs load(), and asserts the returned
+// error contains the expected substring.
 func TestValidate_Rules(t *testing.T) {
 	t.Parallel()
 
@@ -323,7 +323,7 @@ options:
 		{
 			// PR #3 review observation 5: a zero-byte block file
 			// would cause render.join to emit a "\n\n" gap with
-			// nothing between, breaking the §4.4 trailing-newline
+			// nothing between, breaking the trailing-newline
 			// contract. Pin the rule at the validator so the
 			// renderer doesn't have to defend against it.
 			name: "option file: is zero bytes",

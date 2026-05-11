@@ -74,9 +74,8 @@ func TestBuildSecondaryForm_GoConstructs(t *testing.T) {
 }
 
 // TestBuildSecondaryForm_SeedsDefaults asserts the bound variables
-// are pre-populated from `initial` per spec §5.2 paragraph 2. We
-// construct an `initial` Picks with chosen values, build, and read
-// the bindings.
+// are pre-populated from `initial`. We construct an `initial` Picks
+// with chosen values, build, and read the bindings.
 func TestBuildSecondaryForm_SeedsDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -101,9 +100,9 @@ func TestBuildSecondaryForm_SeedsDefaults(t *testing.T) {
 	// the bound pointer with the first option's value at construction
 	// time (via Accessor → updateValue), so the bound is not "" but
 	// rather the first option's id. This is huh v2 behaviour, not
-	// ours, and it doesn't violate spec §5.2 paragraph 1: the *UX*
-	// still requires Enter to commit. We document this here so a
-	// future maintainer doesn't try to "fix" it.
+	// ours, and it doesn't change the UX contract — the user still
+	// must press Enter to commit. Documented here so a future
+	// maintainer doesn't try to "fix" it.
 	if got := *sf.singles["python.logging"]; got != "stdlib" {
 		t.Errorf("python.logging bound = %q, want %q (huh v2 pre-fills first option)", got, "stdlib")
 	}
@@ -165,7 +164,7 @@ func TestBuildSecondaryForm_Errors(t *testing.T) {
 }
 
 // TestSummarise_RenderOrder asserts the confirm-group summary lists
-// blocks in render order (§4.4): language base, language subs, then
+// blocks in render order: language base, language subs, then
 // cross-cutting categories. This is what the user sees on the
 // confirm screen, so it needs to match the actual write order.
 func TestSummarise_RenderOrder(t *testing.T) {

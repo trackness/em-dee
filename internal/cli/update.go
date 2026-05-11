@@ -17,18 +17,18 @@ import (
 
 // updateCheckTimeout is the upper bound on the GitHub API request.
 // 15s balances tolerating slow networks with not stranding the user
-// on a hung connection (spec §12.6 lists network unavailable as a
-// failure mode, exit 2). Documented choice per plan Task 3.6.
+// on a hung connection (network unavailable is a failure mode, exit
+// 2). Documented choice per plan Task 3.6.
 const updateCheckTimeout = 15 * time.Second
 
 // releaseAPIURL is the GitHub Releases API endpoint queried for the
-// latest tag. Repo path matches spec §12.1 (`trackness/em-dee`).
+// latest tag.
 const releaseAPIURL = "https://api.github.com/repos/trackness/em-dee/releases/latest"
 
 // exitCodeError wraps a process exit code so the cobra layer can map
-// a `--check` outcome to the three-state convention from spec §12.6
-// (0 = up-to-date, 1 = update available, 2 = error) without abusing
-// fmt.Errorf for control flow.
+// a `--check` outcome to the three-state convention (0 = up-to-date,
+// 1 = update available, 2 = error) without abusing fmt.Errorf for
+// control flow.
 type exitCodeError struct {
 	code int
 	msg  string
@@ -46,9 +46,8 @@ type installMethod struct {
 
 // detectInstallMethod inspects an executable path and returns whether
 // the binary was installed via a package manager (`go install`,
-// homebrew, linuxbrew) per spec §12.6's rules. Pure: takes the path
-// as an argument so unit tests cover every rule without touching the
-// real filesystem.
+// homebrew, linuxbrew). Pure: takes the path as an argument so unit
+// tests cover every rule without touching the real filesystem.
 //
 // Rule order matters: go-install paths are detected first because
 // they're the most common false-positive for the "proceed" branch (a
@@ -134,7 +133,8 @@ func runUpdateCheck(env updateCheckEnv) (updateCheckResult, error) {
 		return updateCheckResult{code: 2, message: fmt.Sprintf("build request: %v", err)}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	// Honor GITHUB_TOKEN per spec §12.6's rate-limit failure-mode note.
+	// Honor GITHUB_TOKEN so rate-limited users can raise the API
+	// quota.
 	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
@@ -194,15 +194,15 @@ func runUpdateCheck(env updateCheckEnv) (updateCheckResult, error) {
 
 	current := strings.TrimPrefix(env.version, "v")
 
-	// Dev-build special case (spec §12.7): a binary built locally
-	// without ldflags carries version="dev" (and the goreleaser path
-	// stamps `dev-<sha>` for nightly-style builds). Comparing either
-	// against a release tag always trips the "update available"
-	// branch with the misleading "dev → 1.2.3" line. Treat the
-	// dev-build case as a distinct success state — exit 0, message
-	// names the latest release without claiming an "update is
-	// available" — so scripts pinned to exit 0 for "you're up to
-	// date" don't churn on developer machines.
+	// Dev-build special case: a binary built locally without ldflags
+	// carries version="dev" (and the goreleaser path stamps
+	// `dev-<sha>` for nightly-style builds). Comparing either against
+	// a release tag always trips the "update available" branch with
+	// the misleading "dev → 1.2.3" line. Treat the dev-build case as
+	// a distinct success state — exit 0, message names the latest
+	// release without claiming an "update is available" — so scripts
+	// pinned to exit 0 for "you're up to date" don't churn on
+	// developer machines.
 	if isDevBuildVersion(current) {
 		return updateCheckResult{
 			code:    0,
@@ -224,12 +224,11 @@ func runUpdateCheck(env updateCheckEnv) (updateCheckResult, error) {
 
 // isDevBuildVersion reports whether a normalised version string is
 // the dev-build sentinel produced by `go build` without ldflags
-// (`dev`) or by a nightly-style goreleaser run (`dev-<sha>`). Spec
-// §12.7 enumerates these as the only non-release version shapes;
-// anything else is treated as a release tag and compared by string
-// equality. Semver comparison is deliberately out of scope for v1
-// (spec §12.6 only mandates the three-state exit code, not how
-// "newer" is decided).
+// (`dev`) or by a nightly-style goreleaser run (`dev-<sha>`). These
+// are the only non-release version shapes; anything else is treated
+// as a release tag and compared by string equality. Semver comparison
+// is deliberately out of scope for v1 — only the three-state exit
+// code is part of the contract, not how "newer" is decided.
 func isDevBuildVersion(v string) bool {
 	return v == "dev" || strings.HasPrefix(v, "dev-")
 }
@@ -246,11 +245,10 @@ const updateInstallTimeout = 5 * time.Minute
 // windows where you can't rename an open file). Pulled out as a var
 // so tests substitute a no-op without touching the running binary.
 //
-// Tradeoff (per plan Task 6.4): minio/selfupdate over
-// inconshreveable/go-update. Both libraries do the same job; minio's
-// fork is the actively-maintained one (last release 2024+), with the
-// same Apply signature. inconshreveable's repo has been archived for
-// years, so even though the spec mentions either, picking the
+// Tradeoff: minio/selfupdate over inconshreveable/go-update. Both
+// libraries do the same job; minio's fork is the actively-maintained
+// one (last release 2024+), with the same Apply signature.
+// inconshreveable's repo has been archived for years, so the
 // maintained fork is the smaller-risk choice.
 var defaultUpdater updaterFunc = func(newBinary []byte) error {
 	return selfupdate.Apply(bytes.NewReader(newBinary), selfupdate.Options{})
@@ -315,7 +313,7 @@ func newUpdateCmd(opts Options) *cobra.Command {
 			// Real install path (Task 6.4). The pipeline downloads the
 			// platform archive + checksums.txt, verifies SHA256, extracts
 			// the binary, and atomically replaces the running executable
-			// via selfupdate.Apply (spec §12.6).
+			// via selfupdate.Apply.
 			if env.client == nil {
 				env.client = &http.Client{Timeout: updateInstallTimeout}
 			}

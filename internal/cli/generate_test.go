@@ -66,9 +66,9 @@ func TestGenerate_MissingRequiredLanguage(t *testing.T) {
 // `--use-defaults` without `--language` produces a single clear
 // error up front, rather than letting the pipeline reach the deeper
 // "required category not set and no default available" check on the
-// language category. Spec §5.3 reserves the language prompt for the
-// interactive flow (Phase 4), so non-interactive callers must supply
-// --language regardless of --use-defaults.
+// language category. The language prompt is reserved for the
+// interactive flow, so non-interactive callers must supply --language
+// regardless of --use-defaults.
 func TestGenerate_UseDefaultsWithoutLanguageIsClear(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})
@@ -89,7 +89,7 @@ func TestGenerate_UseDefaultsWithoutLanguageIsClear(t *testing.T) {
 }
 
 // TestGenerate_ExplicitEmptyRequired asserts --language= (explicit
-// empty on a required category) is a hard error per spec §5.1.
+// empty on a required category) is a hard error.
 func TestGenerate_ExplicitEmptyRequired(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})
@@ -104,7 +104,7 @@ func TestGenerate_ExplicitEmptyRequired(t *testing.T) {
 }
 
 // TestGenerate_ExistingFileErrorsWithoutForce asserts the existing-file
-// guard from spec §6.
+// guard.
 func TestGenerate_ExistingFileErrorsWithoutForce(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()
@@ -256,8 +256,8 @@ func TestGenerate_RegistryLoadErrorSurfaces(t *testing.T) {
 }
 
 // TestGenerate_SuccessLineOnStderr asserts the post-write success
-// line (spec §5.2 step 7) is emitted to stderr after a non-dry-run
-// write. The line carries the path, block count, and KB size.
+// line is emitted to stderr after a non-dry-run write. The line
+// carries the path, block count, and KB size.
 func TestGenerate_SuccessLineOnStderr(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	tmp := t.TempDir()

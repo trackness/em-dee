@@ -19,10 +19,7 @@ import (
 
 // Install path for `em-dee update` (non-`--check`).
 //
-// Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.6
-// Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.4
-//
-// Flow (numbered to match spec §12.6 step list):
+// Flow:
 //   1. GitHub Releases API → latest release metadata + asset list.
 //   2. Pick the platform-appropriate archive asset
 //      (em-dee_<os>_<arch>.<ext>) matching goreleaser's name_template
@@ -73,7 +70,7 @@ type releasePayload struct {
 // fetchLatestRelease GETs the latest-release metadata via the GitHub
 // API. Returns the parsed payload plus the raw status code so callers
 // can differentiate rate-limit / 404 / parse failures in their error
-// messages (spec §12.6 failure modes).
+// messages.
 func fetchLatestRelease(ctx context.Context, client *http.Client, apiURL string) (releasePayload, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -94,9 +91,9 @@ func fetchLatestRelease(ctx context.Context, client *http.Client, apiURL string)
 	}
 	if resp.StatusCode != http.StatusOK {
 		// Mirror runUpdateCheck's user-actionable messages for the two
-		// status codes the spec §12.6 calls out by name. Other non-200
-		// responses fall through to the generic shape so the caller can
-		// still see the upstream status + body fragment.
+		// status codes we name explicitly. Other non-200 responses fall
+		// through to the generic shape so the caller can still see the
+		// upstream status + body fragment.
 		switch resp.StatusCode {
 		case http.StatusNotFound:
 			return releasePayload{}, resp.StatusCode, fmt.Errorf("no release found yet for trackness/em-dee (GitHub API returned 404)")
@@ -167,7 +164,7 @@ func parseChecksums(data []byte) map[string]string {
 
 // verifyChecksum returns nil if the SHA256 of `data` matches the hex
 // digest the checksums file lists for `name`. Missing entry =
-// explicit error (spec §12.6 mandates verification, not best-effort).
+// explicit error (verification is mandatory, not best-effort).
 func verifyChecksum(checksums map[string]string, name string, data []byte) error {
 	want, ok := checksums[name]
 	if !ok {
@@ -351,7 +348,7 @@ func runUpdateInstall(ctx context.Context, env updateCheckEnv, apply updaterFunc
 		return updateCheckResult{code: 2, message: "release payload has no tag_name"}, nil
 	}
 	if current == latest {
-		// Spec §12.6: "already on latest" exits 0 with a clear message.
+		// "Already on latest" exits 0 with a clear message.
 		return updateCheckResult{
 			code:    0,
 			message: fmt.Sprintf("you are on the latest version (%s)", current),
@@ -388,7 +385,7 @@ func runUpdateInstall(ctx context.Context, env updateCheckEnv, apply updaterFunc
 
 	checksums := parseChecksums(sumsBytes)
 	if err := verifyChecksum(checksums, wantName, archive); err != nil {
-		// Spec §12.6 security: mismatch aborts, binary unchanged.
+		// Security: mismatch aborts, binary unchanged.
 		return updateCheckResult{
 			code:    2,
 			message: fmt.Sprintf("aborting: %v", err),
@@ -402,7 +399,7 @@ func runUpdateInstall(ctx context.Context, env updateCheckEnv, apply updaterFunc
 
 	if err := apply(binary); err != nil {
 		// selfupdate's permission error is the canonical case here.
-		// Surface a sudo hint per spec §12.6 failure modes.
+		// Surface a sudo hint so the user knows the fix.
 		if isPermissionError(err) {
 			return updateCheckResult{
 				code:    2,

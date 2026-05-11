@@ -87,10 +87,10 @@ func TestShow_UnknownRef(t *testing.T) {
 	}
 }
 
-// TestShow_GoFrameworkGin exercises `go.framework.gin` from the spec
-// §5.1 examples — we don't have a go.framework category in the
-// fixture, so this test verifies the resolver fails cleanly (rather
-// than the block-found happy path).
+// TestShow_NoFrameworkInFixture exercises `go.framework.gin` — we
+// don't have a go.framework category in the fixture, so this test
+// verifies the resolver fails cleanly (rather than the block-found
+// happy path).
 func TestShow_NoFrameworkInFixture(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})

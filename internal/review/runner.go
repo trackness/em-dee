@@ -10,18 +10,17 @@ import (
 )
 
 // Runner is the interface the review pipeline uses to invoke
-// `claude -p`. The seam exists for the same reason spec §11 calls for
-// it: real subprocess invocation is awkward to test against, so parse
-// and presentation tests inject a stub.
+// `claude -p`. The seam exists because real subprocess invocation is
+// awkward to test against, so parse and presentation tests inject a
+// stub.
 //
 // `Run` returns:
 //   - `stdout`: the model's raw response bytes. The default ExecRunner
 //     strips the `--output-format=json` wire envelope (see decision
 //     below); stub runners in tests return whatever the test wants
 //     Parse to see.
-//   - `stderr`: subprocess stderr verbatim. The spec §7.6 "claude
-//     review failed:" path prints this when the runner returns an
-//     exec error.
+//   - `stderr`: subprocess stderr verbatim. The "claude review failed:"
+//     path prints this when the runner returns an exec error.
 //   - `err`: ErrClaudeNotFound when LookPath fails, ErrTimeout when
 //     the context deadline expires, or any os/exec error otherwise.
 //
@@ -38,24 +37,24 @@ type Runner interface {
 }
 
 // ErrClaudeNotFound is returned by ExecRunner.Run when `claude` is not
-// on PATH. The CLI layer maps this to spec §7.6's "note: claude CLI
-// not found; skipping review" line.
+// on PATH. The CLI layer maps this to the "note: claude CLI not
+// found; skipping review" line.
 var ErrClaudeNotFound = errors.New("claude CLI not found on PATH")
 
 // ErrTimeout is returned by ExecRunner.Run when the context deadline
-// expires before claude exits. The CLI layer maps this to spec §7.6's
-// "note: claude review timed out after <duration>" line.
+// expires before claude exits. The CLI layer maps this to the "note:
+// claude review timed out after <duration>" line.
 //
 // Distinct from a generic exec error so the CLI can pick the right
-// failure-mode wording — the spec gives the timeout case its own line.
+// failure-mode wording — the timeout case has its own line.
 var ErrTimeout = errors.New("claude review timed out")
 
 // ExecRunner is the production Runner: shells out to `claude -p
 // <prompt> --output-format=json`, unwraps the JSON envelope to extract
 // the model's raw response, and returns that.
 //
-// Spec §7.1: the prompt is passed as a single -p argv arg; no stdin.
-// Argv length is well below ARG_MAX on darwin/linux.
+// The prompt is passed as a single -p argv arg; no stdin. Argv length
+// is well below ARG_MAX on darwin/linux.
 type ExecRunner struct {
 	// Path overrides exec.LookPath("claude"). Empty means look it up
 	// once per Run() call. Production leaves this empty.
@@ -81,23 +80,24 @@ func (r *ExecRunner) Run(ctx context.Context, prompt string) ([]byte, []byte, er
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// Spec §7.6: "kill the process group" on timeout. configureProcessGroup
+	// Kill the whole process group on timeout. configureProcessGroup
 	// installs platform-specific plumbing — on unix it sets SysProcAttr
 	// to start a new pgid and overrides cmd.Cancel to SIGKILL the whole
-	// group via syscall.Kill(-pid, ...). On windows it's a no-op (default
-	// exec.CommandContext behaviour kills the direct child only; Windows
-	// process-group semantics live in a different model, JobObjects,
-	// which is out of scope for the §7.6 fix). See runner_unix.go /
+	// group via syscall.Kill(-pid, ...). On windows it's a no-op
+	// (default exec.CommandContext behaviour kills the direct child
+	// only; Windows process-group semantics live in a different model,
+	// JobObjects, which is out of scope here). See runner_unix.go /
 	// runner_windows.go for the build-tagged implementations.
 	configureProcessGroup(cmd)
 
 	err := cmd.Run()
 	if err != nil {
 		// Distinguish timeout (context deadline exceeded) from a non-
-		// zero exit, so the CLI layer can pick the right §7.6 wording.
-		// We check ctx.Err() rather than testing the error chain for
-		// context-cancelled because exec.CommandContext wraps the
-		// signal-induced exit, and the wrap differs by platform.
+		// zero exit, so the CLI layer can pick the right failure-mode
+		// wording. We check ctx.Err() rather than testing the error
+		// chain for context-cancelled because exec.CommandContext
+		// wraps the signal-induced exit, and the wrap differs by
+		// platform.
 		if ctx.Err() == context.DeadlineExceeded {
 			return stdout.Bytes(), stderr.Bytes(), ErrTimeout
 		}
@@ -140,7 +140,7 @@ func unwrapEnvelope(raw []byte) []byte {
 }
 
 // BuildPrompt concatenates the embedded prompt template with the
-// rendered CLAUDE.md content per spec §7.1's shape:
+// rendered CLAUDE.md content:
 //
 //	<prompt template>
 //
@@ -165,6 +165,6 @@ func BuildPrompt(content []byte) string {
 	return b.String()
 }
 
-// DefaultTimeout is the default review subprocess deadline per spec
-// §7.6. The CLI layer overrides this via `--review-timeout`.
+// DefaultTimeout is the default review subprocess deadline. The CLI
+// layer overrides this via `--review-timeout`.
 const DefaultTimeout = 60 * time.Second

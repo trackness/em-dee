@@ -133,7 +133,7 @@ func TestRender_MultiPick(t *testing.T) {
 
 // TestRender_MultiPickDeterminism: when the user passes selections in
 // reverse manifest order, the output is byte-identical to the
-// in-order case. This is the §4.4 determinism rule.
+// in-order case. This is the determinism rule.
 func TestRender_MultiPickDeterminism(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +166,7 @@ func TestRender_MultiPickDeterminism(t *testing.T) {
 }
 
 // TestRender_EveryCategoryPopulated: language + nested + cross-cutting
-// all present. The order matches §4.4 exactly.
+// all present. The order matches the registry's manifest exactly.
 func TestRender_EveryCategoryPopulated(t *testing.T) {
 	t.Parallel()
 

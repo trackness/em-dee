@@ -1,10 +1,7 @@
 # CI workflow — em-dee.
 #
-# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.2
-# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.2
-#
 # Triggers on every push and PR; CI must be green for any merge to main
-# (branch protection enforces this — see §12.1).
+# (branch protection enforces this).
 name: CI
 
 on:
@@ -33,20 +30,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Matrix per spec §12.2: latest stable + N-1. Using the
-      # actions/setup-go aliases "stable" / "oldstable" so this tracks
-      # Go's release cadence automatically without needing to bump pins
-      # twice a year. Tradeoff: a stable release that breaks our build
-      # would silently fail CI until pinned; mitigated by quick triage
-      # because both rows fail together when the toolchain is the cause.
+      # Matrix: latest stable + N-1. Using the actions/setup-go aliases
+      # "stable" / "oldstable" so this tracks Go's release cadence
+      # automatically without needing to bump pins twice a year.
+      # Tradeoff: a stable release that breaks our build would silently
+      # fail CI until pinned; mitigated by quick triage because both
+      # rows fail together when the toolchain is the cause.
       matrix:
         go: ["stable", "oldstable"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
           # cache: true is the v5 default; explicit for clarity.
@@ -66,10 +63,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: true

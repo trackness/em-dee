@@ -1,4 +1,4 @@
-# Every category populated. Exercises the full §4.4 render order:
+# Every category populated. Exercises the full render order:
 # language base → framework → logging → infra (multi) → ci (multi).
 language: python
 python.framework: django

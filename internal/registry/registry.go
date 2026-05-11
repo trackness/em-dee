@@ -101,11 +101,11 @@ func walk(fsys fs.FS, root string) (*Registry, error) {
 
 	for _, name := range dirs {
 		dir := path.Join(root, name)
-		// Explicit hygiene rule (spec §9.1: "every category folder
-		// contains exactly one _index.yaml"). Probe first so the
-		// error message names the rule rather than relying on the
-		// shape of fs.ReadFile's I/O error — a future os.DirFS swap
-		// that silently ignored missing files would otherwise go
+		// Explicit hygiene rule: every category folder must contain
+		// exactly one _index.yaml. Probe first so the error message
+		// names the rule rather than relying on the shape of
+		// fs.ReadFile's I/O error — a future os.DirFS swap that
+		// silently ignored missing files would otherwise go
 		// undetected.
 		if _, err := fs.Stat(fsys, path.Join(dir, "_index.yaml")); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -119,11 +119,11 @@ func walk(fsys fs.FS, root string) (*Registry, error) {
 		}
 		// Special-case the language category: descend into each
 		// language option's folder and collect its sub-categories.
-		// Per spec §4.1 the language category is the only one with
-		// subcategories; all others stay flat. Match on the parsed
-		// (prefix-stripped) id rather than the on-disk folder name so
-		// the literal `10-language` lives only inside parseIndex's
-		// stripPrefix and is never re-encoded at this layer.
+		// The language category is the only one with subcategories;
+		// all others stay flat. Match on the parsed (prefix-stripped)
+		// id rather than the on-disk folder name so the literal
+		// `10-language` lives only inside parseIndex's stripPrefix and
+		// is never re-encoded at this layer.
 		if cat.ID == LanguageCategoryID {
 			cat.Subcategories = map[string][]*Category{}
 			for _, opt := range cat.Options {

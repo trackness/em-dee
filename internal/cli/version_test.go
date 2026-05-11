@@ -8,8 +8,7 @@ import (
 	"testing"
 )
 
-// TestVersion_Human asserts the human-readable format documented in
-// spec §12.7 / plan Task 3.1.
+// TestVersion_Human asserts the human-readable format (plan Task 3.1).
 func TestVersion_Human(t *testing.T) {
 	root := NewRootCmd(Options{
 		Version: "1.2.3",
@@ -30,7 +29,7 @@ func TestVersion_Human(t *testing.T) {
 	}
 }
 
-// TestVersion_JSON asserts the JSON shape documented in spec §12.6:
+// TestVersion_JSON asserts the JSON shape:
 // {"version","commit","date","platform"}.
 func TestVersion_JSON(t *testing.T) {
 	root := NewRootCmd(Options{

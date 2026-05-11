@@ -9,9 +9,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Present renders a ReviewResult to w with lipgloss styling per spec
-// §7.4. `termWidth` is the detected terminal width; when 0 (or
-// unknown) the function falls back to 100 cols per §7.4.
+// Present renders a ReviewResult to w with lipgloss styling.
+// `termWidth` is the detected terminal width; when 0 (or unknown)
+// the function falls back to 100 cols.
 //
 // Why termWidth is an int argument rather than detected here: the
 // presentation layer needs to be deterministically testable, and
@@ -19,9 +19,9 @@ import (
 // the caller (the cli layer in Task 5.5) keeps Present pure-ish — the
 // only side effect is writing to w.
 //
-// The unstructured-verdict branch (§7.7 sentinel) renders the raw
-// model text under a `review (unstructured)` header instead of the
-// issue-list shape, so the user can still read what claude said.
+// The unstructured-verdict branch renders the raw model text under a
+// `review (unstructured)` header instead of the issue-list shape, so
+// the user can still read what claude said.
 func Present(w io.Writer, res ReviewResult, termWidth int) {
 	width := termWidth
 	if width <= 0 {
@@ -49,9 +49,9 @@ func presentStructured(w io.Writer, res ReviewResult, width int) {
 	}
 }
 
-// presentUnstructured renders the §7.7 sentinel shape. The raw text is
-// printed verbatim (no wrap) — it's already prose and lipgloss-wrapping
-// it would mangle Claude's intended line breaks.
+// presentUnstructured renders the unstructured sentinel shape. The raw
+// text is printed verbatim (no wrap) — it's already prose and
+// lipgloss-wrapping it would mangle Claude's intended line breaks.
 //
 // Edge case: a hand-constructed result with both Summary and Raw empty
 // would print a header and a blank line. Parse() never produces that
@@ -75,7 +75,7 @@ func presentUnstructured(w io.Writer, res ReviewResult) {
 	}
 }
 
-// renderIssue prints one Issue per spec §7.4:
+// renderIssue prints one Issue:
 //
 //	Section "<location>" — <issue body>
 //	    → <suggestion>
@@ -106,12 +106,12 @@ func renderIssue(w io.Writer, iss Issue, width int) {
 		fmt.Fprintln(w, sev.Render(contIndent+line))
 	}
 
-	// Suggestion: `    → <suggestion>` with `    ` indent per §7.4's
-	// rendering example. Wraps at width - 6 display columns (4 indent
-	// + 2 for "→ "). Use lipgloss.Width, not len: the arrow is a
-	// 3-byte rune occupying 1 column; `len("→ ") == 4` would budget
-	// the wrap two columns short and indent continuation lines two
-	// columns too far. Same bug class as the issue-body prefix above.
+	// Suggestion: `    → <suggestion>` with `    ` indent. Wraps at
+	// width - 6 display columns (4 indent + 2 for "→ "). Use
+	// lipgloss.Width, not len: the arrow is a 3-byte rune occupying 1
+	// column; `len("→ ") == 4` would budget the wrap two columns short
+	// and indent continuation lines two columns too far. Same bug
+	// class as the issue-body prefix above.
 	suggIndent := "    "
 	suggArrow := "→ "
 	suggArrowCols := lipgloss.Width(suggArrow)
@@ -179,7 +179,7 @@ func wrap(s string, width int) string {
 	return out.String()
 }
 
-// verdictMarker returns the glyph and style for a verdict per §7.4.
+// verdictMarker returns the glyph and style for a verdict.
 func verdictMarker(v Verdict) (marker string, style lipgloss.Style) {
 	switch v {
 	case VerdictOK:
@@ -193,7 +193,7 @@ func verdictMarker(v Verdict) (marker string, style lipgloss.Style) {
 	}
 }
 
-// severityStyle returns the lipgloss style for a severity per §7.4
+// severityStyle returns the lipgloss style for a severity
 // (info=neutral, warning=yellow, error=red).
 func severityStyle(s Severity) lipgloss.Style {
 	switch s {

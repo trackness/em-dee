@@ -11,7 +11,7 @@ import (
 
 // TestBuildPrompt_ConcatenatesTemplateAndContent asserts the prompt
 // passed to claude is the embedded template + the rendered content,
-// separated by the spec §7.1 fenced delimiter.
+// separated by the fenced delimiter.
 func TestBuildPrompt_ConcatenatesTemplateAndContent(t *testing.T) {
 	t.Parallel()
 	content := []byte("# Generated CLAUDE.md\n\nbody body\n")
