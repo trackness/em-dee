@@ -75,13 +75,17 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           # Pin the runner to a known-good golangci-lint version. v2.12
           # is the current stable line as of 2026-05-11. The v1.62
           # binary was built against Go 1.23 and refuses to load against
           # this repo's `go 1.25.8` go.mod target; v2.x lifts that floor
           # and matches the v2 schema used by .golangci.yml.
+          #
+          # The action major version must be >= v7 to install
+          # golangci-lint v2 (v6 hard-rejects v2.* version strings).
+          # v8 is the current stable major as of 2026-05-11.
           version: v2.12.2
           # No --config arg: golangci-lint discovers .golangci.yml at
           # the repo root, which pins the enabled set explicitly. In v2
