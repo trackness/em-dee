@@ -44,7 +44,7 @@ brew install trackness/tap/em-dee
 
 | Command | Description |
 | --- | --- |
-| `em-dee` | Interactive flow — prompts for language and each category. |
+| `em-dee` | Interactive flow on a TTY — prompts for language and each category. In non-interactive contexts (CI, pipes, `Makefile` recipes), pass `--language=<id>` and any other category flags; em-dee errors out instead of half-prompting. |
 | `em-dee generate --language=python --python-logging=loguru` | Non-interactive generation. Flag names use dashes, not dots (`--python-logging`, not `--python.logging`). |
 | `em-dee generate --use-defaults` | Accept all defaults; only the language must still be supplied. |
 | `em-dee list` | Show the full catalog (categories and options). |
