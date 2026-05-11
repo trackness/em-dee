@@ -24,7 +24,10 @@ platform:
 curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.tar.gz | tar -xz
 ```
 
-Or auto-detect via `uname`:
+Or auto-detect via `uname` (macOS / Linux only — Windows ships a `.zip`
+and Git-Bash's `uname -s` reports `mingw64_nt-...`, so Windows users
+should stick with the placeholder form above and use
+`em-dee_windows_amd64.zip`):
 
 ```sh
 curl -fsSL "https://github.com/trackness/em-dee/releases/latest/download/em-dee_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar -xz
