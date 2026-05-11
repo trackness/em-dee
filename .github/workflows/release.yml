@@ -25,20 +25,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # goreleaser needs full history to compute the changelog
           # between the previous tag and the current one (spec §12.3).
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: true
 
       - name: goreleaser release
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           # Match the locally-tested version. Bumping is a one-line edit
           # that should be paired with a `goreleaser check` against the
