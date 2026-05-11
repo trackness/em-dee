@@ -128,11 +128,16 @@ release:
   name_template: "v{{ .Version }}"
 
 # Homebrew tap declaration: DECLARED BUT COMMENTED OUT until the
-# `homebrew-trackness-tap` repository exists (spec §12.4). Enabling is
-# a one-line uncomment + setting HOMEBREW_TAP_GITHUB_TOKEN in the
+# `trackness/homebrew-tap` repository exists (spec §12.4). Enabling
+# is a one-line uncomment + setting HOMEBREW_TAP_GITHUB_TOKEN in the
 # release workflow's secrets. Leaving the block here as a template so
 # the future "enable Homebrew" change is one PR rather than a recall
 # of the spec.
+#
+# The repo name must be `homebrew-tap` (NOT `homebrew-trackness-tap`):
+# Brew resolves `<owner>/<tap>/<formula>` to repo `<owner>/homebrew-<tap>`,
+# so `brew install trackness/tap/em-dee` (the README's documented
+# command) maps to `trackness/homebrew-tap`.
 #
 # brews:
 #   - name: em-dee
@@ -140,7 +145,7 @@ release:
 #       - em-dee
 #     repository:
 #       owner: trackness
-#       name: homebrew-trackness-tap
+#       name: homebrew-tap
 #       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
 #     directory: Formula
 #     homepage: https://github.com/trackness/em-dee

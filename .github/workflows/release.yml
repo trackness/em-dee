@@ -51,7 +51,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # HOMEBREW_TAP_GITHUB_TOKEN is not yet required: the `brews:`
           # block in .goreleaser.yaml is commented out until the
-          # homebrew-trackness-tap repo exists (spec §12.4). Once the
+          # `trackness/homebrew-tap` repo exists (spec §12.4). Once the
           # tap is enabled, uncomment the env line below and add the
           # secret in the repo settings.
           # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
