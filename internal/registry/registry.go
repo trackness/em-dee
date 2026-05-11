@@ -18,12 +18,20 @@ import (
 var templatesFS embed.FS
 
 // Load reads the embedded templates filesystem and returns a fully
-// parsed and validated Registry. For Task 1.2 this is a walk skeleton
-// — the manifest parser and validator land in Tasks 1.3 / 1.4. An
-// empty `templates/` (the current state) returns an empty Registry
-// with no error.
+// parsed and validated Registry. An empty `templates/` (until Phase 7
+// fills it with finalised content) returns an empty Registry with no
+// error.
 func Load() (*Registry, error) {
 	return load(templatesFS, "templates")
+}
+
+// LoadFS is the exported entry point for loading a Registry from an
+// arbitrary fs.FS. It's the seam the render package and `em-dee show`
+// use to point at fixture trees (e.g. `internal/render/testdata/`)
+// without needing the production embedded filesystem. Behaviour is
+// otherwise identical to Load.
+func LoadFS(fsys fs.FS, root string) (*Registry, error) {
+	return load(fsys, root)
 }
 
 // load is the test-injectable entry point so unit tests can drive the
@@ -38,7 +46,38 @@ func load(fsys fs.FS, root string) (*Registry, error) {
 	if err := Validate(reg, fsys, root); err != nil {
 		return nil, err
 	}
+	reg.fsys = fsys
 	return reg, nil
+}
+
+// OptionBlock returns the raw bytes of the `.md` block file for the
+// given option in the given category. The lookup uses the category's
+// Path (the embedded-FS path of the category folder) joined with the
+// option's File field. Returns an error if the option id doesn't
+// exist in the category or the file can't be read.
+//
+// This is the single read seam between Registry and the renderer:
+// callers don't reach into the embedded FS directly, so the
+// fsys+root coupling stays inside the registry package per the
+// CLAUDE.md "no hidden coupling" principle.
+func (r *Registry) OptionBlock(cat *Category, optionID string) ([]byte, error) {
+	if cat == nil {
+		return nil, fmt.Errorf("OptionBlock: nil category")
+	}
+	if r.fsys == nil {
+		return nil, fmt.Errorf("OptionBlock: registry has no filesystem (constructed outside Load)")
+	}
+	for _, opt := range cat.Options {
+		if opt.ID == optionID {
+			file := path.Join(cat.Path, opt.File)
+			raw, err := fs.ReadFile(r.fsys, file)
+			if err != nil {
+				return nil, fmt.Errorf("OptionBlock: read %s: %w", file, err)
+			}
+			return raw, nil
+		}
+	}
+	return nil, fmt.Errorf("OptionBlock: option %q not found in category %q", optionID, cat.ID)
 }
 
 // walk descends from `root` and assembles the Registry. An empty (or

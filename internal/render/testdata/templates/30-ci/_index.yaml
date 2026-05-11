@@ -1,0 +1,12 @@
+display_name: "CI"
+pick: multi
+required: false
+options:
+  - id: github-actions
+    display_name: "GitHub Actions"
+    description: "GitHub Actions"
+    file: github-actions.md
+  - id: circleci
+    display_name: "CircleCI"
+    description: "CircleCI"
+    file: circleci.md

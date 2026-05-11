@@ -1,0 +1,13 @@
+display_name: "Framework"
+pick: single
+required: false
+default: fastapi
+options:
+  - id: fastapi
+    display_name: "FastAPI"
+    description: "FastAPI"
+    file: fastapi.md
+  - id: django
+    display_name: "Django"
+    description: "Django"
+    file: django.md

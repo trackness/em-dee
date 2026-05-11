@@ -1,0 +1,7 @@
+# Every category populated. Exercises the full §4.4 render order:
+# language base → framework → logging → infra (multi) → ci (multi).
+language: python
+python.framework: django
+python.logging: loguru
+infra: [docker, kubernetes]
+ci: [github-actions, circleci]

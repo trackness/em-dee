@@ -1,5 +1,7 @@
 package registry
 
+import "io/fs"
+
 // Pick is the cardinality of a category — either "single" (choose one
 // option) or "multi" (choose any subset, including none). Per spec
 // §4.2, only these two values are valid in an `_index.yaml`.
@@ -46,9 +48,18 @@ type Category struct {
 }
 
 // Registry is the root view of the templates filesystem in render
-// order (`10-language`, `20-infra`, …). Construct one via Load.
+// order (`10-language`, `20-infra`, …). Construct one via Load or
+// LoadFS — these set the unexported fsys reference that OptionBlock
+// reads from. The fsys field retains the source filesystem so
+// callers — notably `internal/render` and `em-dee show` — can read
+// individual block (`.md`) files via OptionBlock without re-loading
+// the manifest. We keep fsys non-exported rather than re-plumbing
+// the fs.FS through every call site; the boundary stays in the
+// registry package.
 type Registry struct {
 	Categories []*Category
+
+	fsys fs.FS
 }
 
 // Value is the tri-state per-category selection cell used inside

@@ -1,0 +1,7 @@
+# All defaults: only `language` is chosen; every other category is
+# left unset so ApplyDefaults fills it in. Exercises the default-
+# resolution path (single-pick default `fastapi` for
+# python.framework, multi-pick default `[docker]` for infra) and
+# confirms categories without a default (python.logging, ci) stay
+# unset and emit no block.
+language: python
