@@ -286,6 +286,63 @@ func TestPresent_LongMultibyteLocationTruncatedAtRunes(t *testing.T) {
 	}
 }
 
+// TestPresent_SuggestionContinuationIndentInDisplayColumns asserts the
+// residual L2 fix: the suggestion-arrow ("→ ") occupies 1 display
+// column but 3 bytes; computing the continuation indent via
+// `lipgloss.Width` (not `len`) means a wrapped suggestion's second
+// line sits directly under the first character of the suggestion, not
+// two columns to the right.
+func TestPresent_SuggestionContinuationIndentInDisplayColumns(t *testing.T) {
+	t.Parallel()
+	// Force suggestion wrap: long enough at a narrow width that the
+	// suggestion breaks across at least two lines.
+	res := ReviewResult{
+		Verdict: VerdictWarnings,
+		Summary: "wrap check",
+		Issues: []Issue{
+			{
+				Severity:   SeverityWarning,
+				Location:   "Section",
+				Issue:      "short",
+				Suggestion: strings.Repeat("word ", 30),
+			},
+		},
+	}
+	var buf bytes.Buffer
+	Present(&buf, res, 40)
+	got := stripANSI(buf.String())
+
+	// Find the suggestion lines. The first carries the arrow ("→ ");
+	// continuation lines start with the indent only. The continuation
+	// indent must be 6 display columns (4 outer + 2 arrow width), not
+	// 8 (4 + len("→ ")).
+	lines := strings.Split(got, "\n")
+	var arrowLine, contLine string
+	for i, l := range lines {
+		if strings.Contains(l, "→") && arrowLine == "" {
+			arrowLine = l
+			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != "" {
+				contLine = lines[i+1]
+			}
+			break
+		}
+	}
+	if arrowLine == "" || contLine == "" {
+		t.Fatalf("did not find arrow + continuation line in output:\n%s", got)
+	}
+	// Arrow line starts with 4 spaces then "→ ".
+	if !strings.HasPrefix(arrowLine, "    → ") {
+		t.Errorf("arrow line prefix wrong: %q", arrowLine)
+	}
+	// Continuation must begin with exactly 6 spaces, not 8.
+	if !strings.HasPrefix(contLine, "      ") {
+		t.Errorf("continuation indent < 6 spaces: %q", contLine)
+	}
+	if strings.HasPrefix(contLine, "        ") {
+		t.Errorf("continuation indent is 8 spaces (byte-based bug); want 6 (column-based): %q", contLine)
+	}
+}
+
 // TestPresent_UnstructuredEmptyEmitsSentinel asserts the L4 edge case:
 // a hand-constructed unstructured result with empty Summary and empty
 // Raw prints a sentinel line instead of just a blank.

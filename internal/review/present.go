@@ -107,14 +107,18 @@ func renderIssue(w io.Writer, iss Issue, width int) {
 	}
 
 	// Suggestion: `    → <suggestion>` with `    ` indent per §7.4's
-	// rendering example. Wraps at width - 6 (4 indent + 2 for arrow +
-	// space).
+	// rendering example. Wraps at width - 6 display columns (4 indent
+	// + 2 for "→ "). Use lipgloss.Width, not len: the arrow is a
+	// 3-byte rune occupying 1 column; `len("→ ") == 4` would budget
+	// the wrap two columns short and indent continuation lines two
+	// columns too far. Same bug class as the issue-body prefix above.
 	suggIndent := "    "
 	suggArrow := "→ "
-	suggWrap := wrap(iss.Suggestion, max(width-len(suggIndent)-len(suggArrow), 20))
+	suggArrowCols := lipgloss.Width(suggArrow)
+	suggWrap := wrap(iss.Suggestion, max(width-lipgloss.Width(suggIndent)-suggArrowCols, 20))
 	suggLines := strings.Split(suggWrap, "\n")
 	fmt.Fprintln(w, suggestionStyle.Render(suggIndent+suggArrow+suggLines[0]))
-	suggCont := suggIndent + strings.Repeat(" ", len(suggArrow))
+	suggCont := suggIndent + strings.Repeat(" ", suggArrowCols)
 	for _, line := range suggLines[1:] {
 		fmt.Fprintln(w, suggestionStyle.Render(suggCont+line))
 	}
