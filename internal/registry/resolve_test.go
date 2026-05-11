@@ -128,6 +128,30 @@ func TestResolveSelection_MultiPickEmptySlice(t *testing.T) {
 	}
 }
 
+// TestResolveSelection_MultiPickEmptyStringInSlice: pins the
+// asymmetry called out in L3 of the Phase 1 review: a single-element
+// `[]string{""}` is **not** explicit-none (that would be a zero-
+// length slice). It's a one-element list with an empty entry, which
+// fails option-id validation. `infra: ""` (csv form) → explicit-none;
+// `infra: [""]` → `unknown option ""`. Both error sensibly, but the
+// asymmetry is real and we pin it.
+func TestResolveSelection_MultiPickEmptyStringInSlice(t *testing.T) {
+	t.Parallel()
+
+	reg := testRegistry()
+	in := map[string]any{
+		"language": "python",
+		"infra":    []string{""},
+	}
+	_, err := ResolveSelection(reg, in)
+	if err == nil {
+		t.Fatal("expected error for []string{\"\"}, got nil")
+	}
+	if !strings.Contains(err.Error(), `unknown option ""`) {
+		t.Errorf("error %q should mention 'unknown option \"\"'", err)
+	}
+}
+
 // TestResolveSelection_UnknownCategory: a key the registry doesn't
 // recognise is a hard error.
 func TestResolveSelection_UnknownCategory(t *testing.T) {
