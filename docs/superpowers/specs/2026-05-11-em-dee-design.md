@@ -102,8 +102,8 @@ em-dee/
 │       ├── present.go              # lipgloss-rendered output
 │       ├── prompt.md               # embedded review prompt template
 │       └── *_test.go
-├── templates/                      # //go:embed templates/**
-│   ├── 10-language/
+├── internal/registry/templates/    # //go:embed source — must live inside
+│   ├── 10-language/                # the registry pkg per Go's embed scope
 │   │   ├── _index.yaml
 │   │   ├── go/
 │   │   │   ├── base.md
@@ -126,6 +126,15 @@ em-dee/
             ├── selection.yaml
             └── expected.md
 ```
+
+**Note on templates location**: Go's `//go:embed` directive cannot
+reference paths outside the package directory that owns it. The
+templates filesystem therefore lives at
+`internal/registry/templates/` rather than at the repo root. All
+subsequent references in this spec to paths like
+`templates/10-language/...` are logical — they're rooted at the
+templates filesystem wherever it lives. The `_index.yaml` mechanical
+recipes in CLAUDE.md §10.1 paths are similarly logical.
 
 ### 3.3 Package responsibilities
 
