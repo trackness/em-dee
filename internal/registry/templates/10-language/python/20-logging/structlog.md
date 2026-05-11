@@ -1,5 +1,5 @@
-<!-- TODO: real content for python.logging=structlog — see docs/superpowers/specs/2026-05-11-em-dee-design.md §13 -->
+<!-- TODO: real content for python.logging=structlog -->
 
 ## structlog
 
-Placeholder block. To be drafted in Phase 7.2.
+Placeholder block.

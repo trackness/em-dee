@@ -19,10 +19,7 @@ import (
 
 // Install path for `em-dee update` (non-`--check`).
 //
-// Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.6
-// Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.4
-//
-// Flow (numbered to match spec §12.6 step list):
+// Flow:
 //   1. GitHub Releases API → latest release metadata + asset list.
 //   2. Pick the platform-appropriate archive asset
 //      (em-dee_<os>_<arch>.<ext>) matching goreleaser's name_template

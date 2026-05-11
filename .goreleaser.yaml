@@ -1,8 +1,5 @@
 # .goreleaser.yaml — release pipeline for em-dee.
 #
-# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.4, §12.7
-# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.1
-#
 # Invoked by `.github/workflows/release.yml` on every `v*` tag push.
 # Locally testable via `goreleaser check` (validates config without
 # building) and `goreleaser build --snapshot --clean` (no publish).
@@ -18,15 +15,15 @@ before:
 
 builds:
   - id: em-dee
-    # The hyphenated binary name is the spec's choice (§14). Matches the
-    # `em-dee_<os>_<arch>` archive name_template below; downstream
-    # self-update URL derivation depends on consistent naming.
+    # Matches the `em-dee_<os>_<arch>` archive name_template below;
+    # downstream self-update URL derivation depends on consistent naming.
     binary: em-dee
     main: ./cmd/em-dee
     env:
       - CGO_ENABLED=0
-    # Platform matrix per spec §12.4. Windows ARM64 is deferred — no
-    # demand signal yet and it'd double the windows artefact count.
+    # Platform matrix: darwin/linux × amd64/arm64 plus windows/amd64.
+    # Windows ARM64 is deferred — no demand signal yet and it'd double
+    # the windows artefact count.
     goos:
       - darwin
       - linux
@@ -39,8 +36,8 @@ builds:
       - goos: windows
         goarch: arm64
     # ldflags inject build-time metadata into cmd/em-dee/main.go's
-    # version/commit/date vars per spec §12.7. The variable paths match
-    # the declarations in cmd/em-dee/main.go.
+    # version/commit/date vars. The variable paths match the
+    # declarations in cmd/em-dee/main.go.
     flags:
       - -trimpath
     ldflags:
@@ -53,13 +50,13 @@ archives:
   - id: em-dee
     ids:
       - em-dee
-    # CRITICAL (spec §12.4): name_template omits the version so
+    # CRITICAL: name_template omits the version so
     # https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.<ext>
     # resolves correctly. The release page itself still shows the
     # version; only the archived filename is version-stripped. This is
     # load-bearing for the self-update path in internal/cli/update.go.
     name_template: "em-dee_{{ .Os }}_{{ .Arch }}"
-    # tar.gz on unix, zip on windows per spec §12.4.
+    # tar.gz on unix, zip on windows.
     formats:
       - tar.gz
     format_overrides:
@@ -81,7 +78,7 @@ archives:
 checksum:
   # SHA256 sums published as checksums.txt at a predictable URL inside
   # each release. The self-update path downloads this file and verifies
-  # the archive against the matching line (spec §12.6 security).
+  # the archive against the matching line (mandatory; mismatch aborts).
   name_template: "checksums.txt"
   algorithm: sha256
 
@@ -92,8 +89,8 @@ snapshot:
   version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
 
 changelog:
-  # Auto-generate release notes from commit history since the last tag
-  # per spec §12.4. Conventional Commits group naturally below.
+  # Auto-generate release notes from commit history since the last tag.
+  # Conventional Commits group naturally below.
   sort: asc
   use: github
   groups:
@@ -128,11 +125,10 @@ release:
   name_template: "v{{ .Version }}"
 
 # Homebrew tap declaration: DECLARED BUT COMMENTED OUT until the
-# `trackness/homebrew-tap` repository exists (spec §12.4). Enabling
-# is a one-line uncomment + setting HOMEBREW_TAP_GITHUB_TOKEN in the
-# release workflow's secrets. Leaving the block here as a template so
-# the future "enable Homebrew" change is one PR rather than a recall
-# of the spec.
+# `trackness/homebrew-tap` repository exists. Enabling is a one-line
+# uncomment + setting HOMEBREW_TAP_GITHUB_TOKEN in the release
+# workflow's secrets. Leaving the block here as a template so the
+# future "enable Homebrew" change is one PR.
 #
 # The repo name must be `homebrew-tap` (NOT `homebrew-trackness-tap`):
 # Brew resolves `<owner>/<tap>/<formula>` to repo `<owner>/homebrew-<tap>`,

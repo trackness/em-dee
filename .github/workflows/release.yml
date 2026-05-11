@@ -1,12 +1,9 @@
 # Release workflow — em-dee.
 #
-# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.3
-# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.3
-#
 # Triggers on any `v*` tag push. The tag itself is the release gate —
 # only people with push-tag permission on the repo can cut a release.
 # Branch protection on main + green CI is the pre-condition; the tag
-# is cut against a green commit on main per spec §12.1.
+# is cut against a green commit on main.
 name: Release
 
 on:
@@ -28,7 +25,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           # goreleaser needs full history to compute the changelog
-          # between the previous tag and the current one (spec §12.3).
+          # between the previous tag and the current one.
           fetch-depth: 0
 
       - name: Set up Go
@@ -51,7 +48,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # HOMEBREW_TAP_GITHUB_TOKEN is not yet required: the `brews:`
           # block in .goreleaser.yaml is commented out until the
-          # `trackness/homebrew-tap` repo exists (spec §12.4). Once the
-          # tap is enabled, uncomment the env line below and add the
-          # secret in the repo settings.
+          # `trackness/homebrew-tap` repo exists. Once the tap is
+          # enabled, uncomment the env line below and add the secret
+          # in the repo settings.
           # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

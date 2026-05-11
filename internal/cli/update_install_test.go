@@ -17,9 +17,6 @@ import (
 
 // Install-path tests.
 //
-// Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.6
-// Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.4
-//
 // Strategy: an in-process httptest.Server serves a synthetic GitHub
 // release (latest endpoint + asset URLs). Tests construct synthetic
 // tar.gz archives in memory; the updater seam is a no-op that records
