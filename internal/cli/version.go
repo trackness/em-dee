@@ -10,8 +10,9 @@ import (
 
 // versionPayload is the JSON shape mandated by spec §12.6:
 // {"version","commit","date","platform"}. Tooling consumers (notably
-// `em-dee update`) parse this, so the field names are a contract — do
-// not change without bumping a contract version.
+// `em-dee update`) parse this, so the field names are part of the
+// CLI contract — additions go at the tail and deletions need a
+// follow-up to every downstream consumer.
 type versionPayload struct {
 	Version  string `json:"version"`
 	Commit   string `json:"commit"`

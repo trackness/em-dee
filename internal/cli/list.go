@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -96,7 +97,7 @@ func writeListHuman(w io.Writer, reg *registry.Registry) error {
 }
 
 func writeCategoryHuman(w io.Writer, cat *registry.Category, depth int) error {
-	indent := makeIndent(depth)
+	indent := strings.Repeat(" ", depth)
 	req := ""
 	if cat.Required {
 		req = " (required)"
@@ -145,17 +146,6 @@ func writeCategoryHuman(w io.Writer, cat *registry.Category, depth int) error {
 		}
 	}
 	return nil
-}
-
-func makeIndent(depth int) string {
-	if depth == 0 {
-		return ""
-	}
-	out := make([]byte, depth)
-	for i := range out {
-		out[i] = ' '
-	}
-	return string(out)
 }
 
 // writeListJSON serialises the registry into the documented shape and
