@@ -47,7 +47,7 @@ brew install trackness/tap/em-dee
 | `em-dee list` | Show the full catalog (categories and options). |
 | `em-dee show <ref>` | Print one block's markdown to stdout, e.g. `em-dee show python.logging.loguru` or `em-dee show infra.docker`. |
 | `em-dee version` | Print the version. `--json` for machine-readable output. |
-| `em-dee update --check` | Check for a newer release. Exit code `0` = up-to-date, `1` = update available, `2` = error. |
+| `em-dee update --check` | Check for a newer release. Exit code `0` = no upgrade action available (up-to-date, or running a `dev` / `dev-<sha>` build that skips the staleness check), `1` = update available, `2` = error. |
 
 ### `generate` behaviour flags
 
