@@ -44,12 +44,12 @@ that builds and a Taskfile that runs."
 **Spec refs**: §3.1, §14
 **Steps**:
 - Decide the module path. Spec §14 says
-  `github.com/<owner>/em-dee` with owner deferred. For now, pick a
+  `github.com/trackness/em-dee` with owner deferred. For now, pick a
   placeholder owner (the implementer's GitHub handle is the obvious
   choice) and document it in the "Open items" section of this plan
   so the rename, if needed before first release, is a one-line edit
   to `go.mod` plus a grep across the tree.
-- `go mod init github.com/<owner>/em-dee`.
+- `go mod init github.com/trackness/em-dee`.
 - Set the Go version in `go.mod` to `1.22` per §3.1.
 - Commit `go.mod` (no `go.sum` yet; no deps).
 **Verification**: `go build ./...` succeeds (trivially — no packages
@@ -564,7 +564,7 @@ own flags. **Mitigation**: integration test above.
   path; print the suggested command for those install methods and
   exit 0.
 - Otherwise, query the GitHub Releases API for the latest tag:
-  `GET https://api.github.com/repos/<owner>/<repo>/releases/latest`.
+  `GET https://api.github.com/repos/trackness/<repo>/releases/latest`.
   Honor `GITHUB_TOKEN` env var if set (per §12.6's rate-limit
   failure-mode note).
 - Compare against the embedded build version. Exit codes:
@@ -1096,7 +1096,7 @@ deliberately.
 **Depends on**: 6.2, 6.3, 8.1, 8.2, 8.3
 **Spec refs**: §12.1
 **Steps**:
-- Create `github.com/<owner>/em-dee` (the owner chosen in Task 0.1
+- Create `github.com/trackness/em-dee` (the owner chosen in Task 0.1
   must match).
 - Push `main`.
 - Configure branch protection on `main` per §12.1:
@@ -1163,7 +1163,7 @@ inside a task:
    the latest stable at implementation time and document the
    pinned tag in the corresponding commit message.
 4. **Homebrew tap timing**: spec §12.4 leaves the
-   `homebrew-<owner>-tap` repo until "first release". Decide
+   `homebrew-trackness-tap` repo until "first release". Decide
    whether to enable in `v0.1.0` (Task 8.5) or wait until `v0.2.x`.
 5. **`.claude/settings.local.json` hook contents**: spec §10.3
    notes this is a soft-convention. Decide whether to include any

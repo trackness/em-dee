@@ -50,6 +50,23 @@ The shape these recipes will take, summarised from §10.1:
 - No language-specific content in cross-cutting blocks.
 - Never run `task golden-update` to fix a failing test in CI.
 
+## Git workflow
+
+- **`main` is always green.** Never push directly to `main` once CI
+  exists; until then, never push broken state.
+- **Every change lives on a feature branch.** Naming is required:
+  - `feat/<short-slug>` — new functionality.
+  - `fix/<short-slug>` — bug fix.
+  - `chore/<short-slug>` — tooling, config, deps, docs, anything
+    non-functional.
+  - `refactor/<short-slug>` — internal restructuring with no external
+    behaviour change.
+  - `style/<short-slug>` — formatting, comments, naming only.
+- One branch per task from the implementation plan, or per logical
+  chunk if a task is large enough to warrant it.
+- Merge back to `main` only when the branch's success criterion (see
+  the plan) is met.
+
 ## Required commands
 
 - `task verify` before every commit.

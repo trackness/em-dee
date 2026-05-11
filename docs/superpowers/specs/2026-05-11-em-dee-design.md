@@ -733,7 +733,7 @@ either a Go toolchain, Homebrew, or `curl`.
 
 ### 12.1 GitHub repository
 
-Repo at `github.com/<owner>/em-dee`. The Go module path matches.
+Repo at `github.com/trackness/em-dee`. The Go module path matches.
 
 - **Branch model**: `main` is the only long-lived branch. All work goes
   through PRs; PRs run CI; merges require green CI. Branch protection
@@ -774,7 +774,7 @@ Triggers on tag push matching `v*`.
 - **Archives**: `tar.gz` for unix, `zip` for windows. The archive
   `name_template` is `em-dee_{{ .Os }}_{{ .Arch }}` (omits the
   version) so that
-  `https://github.com/<owner>/em-dee/releases/latest/download/em-dee_<os>_<arch>.<ext>`
+  `https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.<ext>`
   resolves to the latest release's asset. The release page still
   shows the version; only the filename is version-stripped.
 - **Checksums**: SHA256 of every archive, published as
@@ -784,7 +784,7 @@ Triggers on tag push matching `v*`.
   attached. Release notes generated from commit history since the
   last tag.
 - **Homebrew tap**: declared in the config but commented out until a
-  `homebrew-<owner>-tap` repo exists. Enabling is a one-line edit.
+  `homebrew-trackness-tap` repo exists. Enabling is a one-line edit.
 
 ### 12.5 Install paths
 
@@ -792,17 +792,17 @@ The README documents all three with copy-pasteable commands.
 
 - **Go install** (any platform with Go):
   ```
-  go install github.com/<owner>/em-dee/cmd/em-dee@latest
+  go install github.com/trackness/em-dee/cmd/em-dee@latest
   ```
 - **Direct download** (any platform; recommended for non-Go users):
   ```
   curl -fsSL \
-    https://github.com/<owner>/em-dee/releases/latest/download/em-dee_<os>_<arch>.tar.gz \
+    https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.tar.gz \
     | tar -xz
   ```
 - **Homebrew** (post-tap setup, macOS/Linux):
   ```
-  brew install <owner>/tap/em-dee
+  brew install trackness/tap/em-dee
   ```
 
 ### 12.6 Update mechanism
@@ -834,10 +834,10 @@ executable resolved with `os.Executable`):
 - *Unix (darwin, linux):*
   - Path under `${GOPATH}/bin/`, `${HOME}/go/bin/`, or `$(go env
     GOBIN)` (whichever is non-empty) → suggest `go install
-    github.com/<owner>/em-dee/cmd/em-dee@latest`; refuse self-update.
+    github.com/trackness/em-dee/cmd/em-dee@latest`; refuse self-update.
   - Path under `/opt/homebrew/`, `/usr/local/Cellar/`,
     `/home/linuxbrew/.linuxbrew/` → suggest `brew upgrade
-    <owner>/tap/em-dee`; refuse self-update.
+    trackness/tap/em-dee`; refuse self-update.
   - Anything else → proceed with self-update.
 - *Windows:*
   - Path containing `\go\bin\` (covers both `%USERPROFILE%\go\bin\`
@@ -922,11 +922,11 @@ compiles and tests pass before content is finalised.
 
 ## 14. Module identity
 
-- **Module path**: `github.com/<owner>/em-dee` — owner to be filled in
+- **Module path**: `github.com/trackness/em-dee` — owner to be filled in
   before module init.
 - **Binary name**: `em-dee`. The hyphenated form is intentional and
   matches the project name; `go install
-  github.com/<owner>/em-dee/cmd/em-dee@latest` produces a binary
+  github.com/trackness/em-dee/cmd/em-dee@latest` produces a binary
   called `em-dee` because Go derives the binary name from the final
   path segment.
 - **Env vars**: no `EM_DEE_*` env vars are read in v1. All
@@ -940,9 +940,8 @@ compiles and tests pass before content is finalised.
 - `.claude/settings.local.json` hook contents (soft-convention; see
   §10.3).
 - Whether to publish a Homebrew tap at first release (tap repo
-  `homebrew-<owner>-tap` to be created when enabled).
+  `homebrew-trackness-tap` to be created when enabled).
 - `--strict-review` flag (makes `warnings` also fail).
-- Module owner / GitHub org.
 - License selection.
 - `em-dee update --force` to override install-method detection.
 - GPG / sigstore signature verification on self-update.
