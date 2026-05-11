@@ -301,6 +301,26 @@ options:
 			wantSubs: []string{"orphan", "stray.md"},
 		},
 		{
+			// PR #3 round-2 review: an empty options[].file slips
+			// past the missing-file check because path.Join with ""
+			// resolves back to the category directory, which exists
+			// as a dir. Pin len(opt.File) > 0 directly with a clear
+			// error so the offending option is named.
+			name: "options[].file is empty string",
+			mutate: func(m fstest.MapFS) {
+				m["templates/20-infra/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "Infra"
+pick: multi
+required: false
+options:
+  - id: docker
+    display_name: "Docker"
+    description: "Docker"
+    file: ""
+`)}
+			},
+			wantSubs: []string{"docker", "file", "non-empty"},
+		},
+		{
 			// PR #3 review observation 5: a zero-byte block file
 			// would cause render.join to emit a "\n\n" gap with
 			// nothing between, breaking the §4.4 trailing-newline

@@ -75,7 +75,7 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           # Pin the runner to a known-good golangci-lint version. v2.12
           # is the current stable line as of 2026-05-11. The v1.62
@@ -85,7 +85,13 @@ jobs:
           #
           # The action major version must be >= v7 to install
           # golangci-lint v2 (v6 hard-rejects v2.* version strings).
-          # v8 is the current stable major as of 2026-05-11.
+          # v9 is the current stable major as of 2026-05-11. v9 brings
+          # the Node20 -> Node24 runtime bump (GitHub Actions deprecated
+          # Node20 on 2025-09-19) plus install-only mode and the Module
+          # Plugin System; none of those features affect em-dee's
+          # invocation, but they're listed in upstream's changelog so a
+          # future maintainer reading "v9 is just Node24" doesn't miss
+          # them. The `version` + `args` schema is unchanged.
           version: v2.12.2
           # No --config arg: golangci-lint discovers .golangci.yml at
           # the repo root, which pins the enabled set explicitly. In v2

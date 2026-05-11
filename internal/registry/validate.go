@@ -22,8 +22,6 @@ var optionIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 func Validate(reg *Registry, fsys fs.FS, root string) error {
 	var errs []error
 
-	languageRoot := path.Join(root, "10-language")
-
 	// Top-level: directory-name pattern (NN- prefix; language root
 	// excluded — its children are language-id folders, not categories).
 	if dirErr := validateCategoryFolderNames(fsys, root); dirErr != nil {
@@ -39,10 +37,13 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 	// internal/cli/show.go's disambiguation rule for the consumer.
 	errs = append(errs, validateLanguageCategoryIDCollisions(reg)...)
 
-	// Per-category checks.
+	// Per-category checks. We identify the language category by its
+	// (prefix-stripped) id rather than its on-disk path so the
+	// `NN-language` folder prefix is owned by parseIndex's
+	// stripPrefix and never re-encoded here.
 	for _, cat := range reg.Categories {
 		errs = append(errs, validateCategory(cat, fsys)...)
-		if cat.Path == languageRoot {
+		if cat.ID == LanguageCategoryID {
 			errs = append(errs, validateLanguageCategory(cat)...)
 			// Children of the language root are language-id folders
 			// (`python`, `go`, …), which use a different naming rule
@@ -183,6 +184,21 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 			errs = append(errs, fmt.Errorf("%s: duplicate option id %q", cat.Path, opt.ID))
 		}
 		seenID[opt.ID] = true
+		// Pin `file:` as non-empty here rather than relying on the
+		// downstream missing-file check to fire indirectly: an empty
+		// path joins to the category's own directory, which fs.Stat
+		// returns as a directory rather than a missing entry. The
+		// resulting error path (the category folder itself) is
+		// confusing, so reject the empty input shape with a clear
+		// rule-named message instead.
+		if len(opt.File) == 0 {
+			errs = append(errs, fmt.Errorf("%s: option %q: file must be non-empty", cat.Path, opt.ID))
+			// Skip the orphan-scan registration for the empty path;
+			// writing `seenFile[""] = true` is harmless today (no .md
+			// can match) but would become wrong if seenFile gained any
+			// other consumer.
+			continue
+		}
 		if !strings.Contains(opt.File, "/") {
 			// Flat-category reference: pin against the orphan scan.
 			seenFile[opt.File] = true
