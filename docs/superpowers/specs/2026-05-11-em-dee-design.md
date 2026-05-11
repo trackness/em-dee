@@ -656,8 +656,14 @@ via a `task golden-update` target.
 ### 10.1 `CLAUDE.md` at repo root
 
 The top-level `CLAUDE.md` is the contract a future Claude session reads
-before editing. It documents:
+before editing. It documents, in this order:
 
+- **Operating principles** (load-bearing; every session in this repo
+  works under these):
+  1. Don't assume. Don't hide confusion. Surface tradeoffs.
+  2. Minimum code that solves the problem. Nothing speculative.
+  3. Touch only what you must. Clean up only your own mess.
+  4. Define success criteria. Loop until verified.
 - **Mechanical recipes**:
   - *Add an option to an existing category*: drop
     `templates/<NN-cat>/<id>.md`; append one entry to that folder's
