@@ -31,6 +31,13 @@ type Options struct {
 	// command falls back to a 15s-timeout http.Client and os.Executable.
 	updateHTTPClient *http.Client
 	updateExePath    string
+
+	// registryLoadErr is a test seam that forces resolveRegistry to
+	// surface a failure even when Registry is nil and the production
+	// loader would have succeeded with an empty result. Used only by
+	// the H2 regression test that exercises generate's behaviour when
+	// the embedded catalog can't be parsed.
+	registryLoadErr error
 }
 
 // NewRootCmd builds the cobra command tree. It is the testable entry

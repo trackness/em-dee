@@ -70,8 +70,13 @@ func newListCmd(opts Options) *cobra.Command {
 
 // resolveRegistry returns the test-injected Registry if set, otherwise
 // calls the production loader. Centralised so every subcommand uses
-// the same lookup.
+// the same lookup. The registryLoadErr seam lets tests force a load
+// failure even when Registry is nil — used by the H2 regression test
+// for generate's "registry failed to load" surfacing.
 func resolveRegistry(opts Options) (*registry.Registry, error) {
+	if opts.registryLoadErr != nil {
+		return nil, opts.registryLoadErr
+	}
 	if opts.Registry != nil {
 		return opts.Registry, nil
 	}

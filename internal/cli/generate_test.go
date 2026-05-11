@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,6 +186,44 @@ func TestGenerate_DryRunSkipsExistenceCheck(t *testing.T) {
 	data, _ := os.ReadFile(out)
 	if string(data) != "preexisting\n" {
 		t.Errorf("dry-run modified the file: %q", string(data))
+	}
+}
+
+// TestGenerate_RegistryLoadErrorSurfaces asserts that a registry-load
+// failure at command-construction time is surfaced by RunE rather
+// than silently swallowed. The previous behaviour half-populated the
+// flag set without any diagnostic — users would see a `--help`
+// listing missing `--language` and have no signal that the catalog
+// failed to parse. RunE now returns the wrapped error first thing,
+// and the command's Long description carries a one-line warning so
+// the failure is visible at `--help` time too.
+func TestGenerate_RegistryLoadErrorSurfaces(t *testing.T) {
+	sentinel := errors.New("simulated registry load failure")
+	root := NewRootCmd(Options{registryLoadErr: sentinel})
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"generate", "--dry-run"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected error from RunE when registry load fails")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Errorf("expected wrapped sentinel error; got: %v", err)
+	}
+
+	// `--help` also carries a one-liner so users see the failure even
+	// when they never reach RunE.
+	helpBuf := &bytes.Buffer{}
+	helpRoot := NewRootCmd(Options{registryLoadErr: sentinel})
+	helpRoot.SetOut(helpBuf)
+	helpRoot.SetErr(helpBuf)
+	helpRoot.SetArgs([]string{"generate", "--help"})
+	if err := helpRoot.Execute(); err != nil {
+		t.Fatalf("generate --help should not fail; got %v", err)
+	}
+	if !strings.Contains(helpBuf.String(), "failed to load embedded registry") {
+		t.Errorf("expected --help to mention failed registry load; got:\n%s", helpBuf.String())
 	}
 }
 

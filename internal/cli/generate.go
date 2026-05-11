@@ -61,6 +61,13 @@ type generateFlags struct {
 	// avoids the parse-the-name-back ambiguity that breaks hyphenated
 	// language ids when the first dash isn't the namespace separator.
 	selectionKey map[string]string
+
+	// regLoadErr captures a registry-load failure from
+	// registerGenerateFlagsAndRun. RunE returns this as its first act
+	// so the user gets a clear error instead of a half-populated flag
+	// set. Nil on the happy path. `--help` still works (cobra prints
+	// the registered flags + the warning we splice into cmd.Long).
+	regLoadErr error
 }
 
 // newGenerateCmd builds `em-dee generate`. The flag set is built
@@ -119,14 +126,37 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	_ = cmd.Flags().MarkHidden("review-timeout")
 
 	// Per-category flags, derived from the registry. We resolve the
-	// registry once at command-construction time; if Load() fails
-	// (production embedded FS broken), surface that on first RunE
-	// instead of panicking here.
+	// registry once at command-construction time. If Load() fails
+	// (production embedded FS broken, schema drift, etc.), record the
+	// error on `flags.regLoadErr` so RunE can surface it as its first
+	// act — silently half-populating the flag set at `--help` time
+	// would leave the user staring at a flag list missing
+	// `--language` with no diagnostic, which is worse than a clear
+	// failure.
+	//
+	// `--help` itself still works (cobra prints whatever flags were
+	// registered) and we splice a one-liner into cmd.Long so the user
+	// can tell the catalog failed to load even when they never reach
+	// RunE.
 	if reg, err := resolveRegistry(opts); err == nil {
 		registerCategoryFlags(cmd.Flags(), reg, flags)
+	} else {
+		flags.regLoadErr = err
+		warning := fmt.Sprintf("\n\nWARNING: failed to load embedded registry; per-category flags are unavailable. Underlying error: %v", err)
+		if cmd.Long != "" {
+			cmd.Long += warning
+		} else {
+			cmd.Long = cmd.Short + warning
+		}
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		// Surface a registry-load failure recorded at construction
+		// time before doing any other work — the rest of the pipeline
+		// assumes a populated category-flag set.
+		if flags.regLoadErr != nil {
+			return fmt.Errorf("load registry: %w", flags.regLoadErr)
+		}
 		reg, err := resolveRegistry(opts)
 		if err != nil {
 			return err
