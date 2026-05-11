@@ -77,11 +77,14 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          # Pin the runner to a known-good golangci-lint version. v1.62
-          # is the current stable line as of 2026-05-11.
-          version: v1.62
-          # No --config arg: golangci-lint uses sensible defaults
-          # (govet, errcheck, staticcheck, ineffassign, unused, gosimple)
-          # plus the project-level .golangci.yml which pins the enabled
-          # set explicitly. The rationale lives in .golangci.yml.
+          # Pin the runner to a known-good golangci-lint version. v2.12
+          # is the current stable line as of 2026-05-11. The v1.62
+          # binary was built against Go 1.23 and refuses to load against
+          # this repo's `go 1.25.8` go.mod target; v2.x lifts that floor
+          # and matches the v2 schema used by .golangci.yml.
+          version: v2.12.2
+          # No --config arg: golangci-lint discovers .golangci.yml at
+          # the repo root, which pins the enabled set explicitly. In v2
+          # gosimple is folded into staticcheck and gofmt is a formatter
+          # rather than a linter. The rationale lives in .golangci.yml.
           args: --timeout=5m
