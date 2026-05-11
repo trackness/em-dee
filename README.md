@@ -33,8 +33,9 @@ should stick with the placeholder form above and use
 curl -fsSL "https://github.com/trackness/em-dee/releases/latest/download/em-dee_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar -xz
 ```
 
-**Homebrew** (post-tap-setup; see spec §12.4 — this command is not live until
-the `trackness/tap` formula is published):
+**Homebrew** (post-tap-setup; see [spec section 12.4](docs/superpowers/specs/2026-05-11-em-dee-design.md)
+— this command is not live until the `trackness/tap` formula is
+published):
 
 ```sh
 brew install trackness/tap/em-dee
@@ -47,9 +48,10 @@ brew install trackness/tap/em-dee
 | `em-dee` | Interactive flow on a TTY — prompts for language and each category. In non-interactive contexts (CI, pipes, `Makefile` recipes), pass `--language=<id>` and any other category flags; em-dee errors out instead of half-prompting. |
 | `em-dee generate --language=python --python-logging=loguru` | Non-interactive generation. Flag names use dashes, not dots (`--python-logging`, not `--python.logging`). |
 | `em-dee generate --use-defaults` | Accept all defaults; only the language must still be supplied. |
-| `em-dee list` | Show the full catalog (categories and options). |
-| `em-dee show <ref>` | Print one block's markdown to stdout, e.g. `em-dee show python.logging.loguru` or `em-dee show infra.docker`. |
-| `em-dee version` | Print the version. `--json` for machine-readable output. |
+| `em-dee list` | Show the full catalog (categories and options). `--json` emits the documented machine-readable shape. |
+| `em-dee show <ref>` | Print one block's markdown to stdout. The resolver accepts three ref forms: `language.<lang>` (e.g. `language.python` → that language's `base.md`), `<lang>.<cat>.<opt>` (e.g. `python.logging.loguru`), and `<cat>.<opt>` (e.g. `infra.docker`). |
+| `em-dee version` | Print the version (human form). |
+| `em-dee version --json` | Print the version as machine-readable JSON. |
 | `em-dee update --check` | Check for a newer release. Exit code `0` = no upgrade action available (up-to-date, or running a `dev` / `dev-<sha>` build that skips the staleness check), `1` = update available, `2` = error. |
 
 ### `generate` behaviour flags
