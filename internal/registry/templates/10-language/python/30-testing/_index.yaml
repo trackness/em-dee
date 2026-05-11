@@ -1,0 +1,9 @@
+display_name: "Python testing"
+pick: single
+required: false
+default: pytest
+options:
+  - id: pytest
+    display_name: "pytest"
+    description: "pytest test framework."
+    file: pytest.md

@@ -1,0 +1,13 @@
+display_name: "Continuous integration"
+pick: multi
+required: false
+default: [github-actions]
+options:
+  - id: github-actions
+    display_name: "GitHub Actions"
+    description: "GitHub Actions CI."
+    file: github-actions.md
+  - id: gitlab-ci
+    display_name: "GitLab CI"
+    description: "GitLab CI/CD pipelines."
+    file: gitlab-ci.md

@@ -1,0 +1,13 @@
+display_name: "TypeScript (Node) logging"
+pick: single
+required: false
+default: pino
+options:
+  - id: pino
+    display_name: "pino"
+    description: "pino structured logger."
+    file: pino.md
+  - id: winston
+    display_name: "winston"
+    description: "winston logger."
+    file: winston.md

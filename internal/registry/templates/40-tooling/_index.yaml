@@ -1,0 +1,21 @@
+display_name: "Tooling"
+pick: multi
+required: false
+default: [pre-commit]
+options:
+  - id: pre-commit
+    display_name: "pre-commit"
+    description: "pre-commit framework for git hook management."
+    file: pre-commit.md
+  - id: mise
+    display_name: "mise"
+    description: "mise polyglot runtime / tool version manager."
+    file: mise.md
+  - id: taskfile
+    display_name: "Taskfile"
+    description: "Taskfile task runner."
+    file: taskfile.md
+  - id: makefile
+    display_name: "Makefile"
+    description: "GNU Make-based task runner."
+    file: makefile.md

@@ -1,0 +1,17 @@
+display_name: "Infrastructure"
+pick: multi
+required: false
+default: [docker]
+options:
+  - id: docker
+    display_name: "Docker"
+    description: "Docker containerisation."
+    file: docker.md
+  - id: kubernetes
+    display_name: "Kubernetes"
+    description: "Kubernetes orchestration."
+    file: kubernetes.md
+  - id: terraform
+    display_name: "Terraform"
+    description: "Terraform infrastructure as code."
+    file: terraform.md
