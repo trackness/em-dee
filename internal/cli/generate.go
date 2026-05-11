@@ -111,7 +111,7 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	cmd.Flags().StringVar(&flags.out, "out", "CLAUDE.md", "path to write CLAUDE.md")
 	cmd.Flags().BoolVar(&flags.force, "force", false, "overwrite an existing file (backed up to CLAUDE.md.bak.<unix-ts>)")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "write to stdout instead of disk; skips existing-file check")
-	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept all defaults; only requires --language (or interactive, Phase 4)")
+	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept defaults for every category except --language (which must still be supplied; the interactive language prompt lands in Phase 4)")
 
 	// Accepted-but-unused review flags. Wired in Phase 5; declaring
 	// them now avoids "unknown flag" errors when users iterate on
@@ -239,9 +239,19 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 		selection[key] = f.Value.String()
 	})
 
-	// Phase 3 has no interactive flow. If language is unset and
-	// --use-defaults wasn't given, error clearly.
-	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang && !flags.useDefaults {
+	// Phase 3 has no interactive flow. `--language` is required
+	// regardless of `--use-defaults`: spec §5.3 defines
+	// `--use-defaults` as "prompt only for language" (still
+	// interactive), and the interactive prompt lands in Phase 4. The
+	// language category has no default per spec §9.1, so without
+	// `--language` the pipeline would eventually hit the deeper
+	// "required category not set and no default available" error — we
+	// surface a single clear message up front instead so scripts get
+	// one diagnostic, not two.
+	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang {
+		if flags.useDefaults {
+			return fmt.Errorf("--use-defaults still requires --language=<id> in non-interactive mode; the interactive language prompt lands in Phase 4")
+		}
 		return fmt.Errorf("language is required; pass --language=<id> or run interactively (interactive flow lands in Phase 4)")
 	}
 

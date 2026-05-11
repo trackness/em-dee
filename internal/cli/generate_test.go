@@ -62,6 +62,32 @@ func TestGenerate_MissingRequiredLanguage(t *testing.T) {
 	}
 }
 
+// TestGenerate_UseDefaultsWithoutLanguageIsClear asserts that
+// `--use-defaults` without `--language` produces a single clear
+// error up front, rather than letting the pipeline reach the deeper
+// "required category not set and no default available" check on the
+// language category. Spec §5.3 reserves the language prompt for the
+// interactive flow (Phase 4), so non-interactive callers must supply
+// --language regardless of --use-defaults.
+func TestGenerate_UseDefaultsWithoutLanguageIsClear(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	root := NewRootCmd(Options{Registry: reg})
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"generate", "--use-defaults", "--dry-run"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected error for --use-defaults without --language")
+	}
+	if !strings.Contains(err.Error(), "--language") {
+		t.Errorf("error should name --language; got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--use-defaults") {
+		t.Errorf("error should name --use-defaults so the user understands the interaction; got: %v", err)
+	}
+}
+
 // TestGenerate_ExplicitEmptyRequired asserts --language= (explicit
 // empty on a required category) is a hard error per spec §5.1.
 func TestGenerate_ExplicitEmptyRequired(t *testing.T) {
