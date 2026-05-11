@@ -198,6 +198,52 @@ func TestApplyDefaults_NonDestructive(t *testing.T) {
 	}
 }
 
+// TestApplyDefaults_NilPointerInMapTreatedAsUnset: a key explicitly
+// present with a nil *Value must be treated the same as map-absent
+// (= "unset" per spec §3.3 and the Value docstring). Pins the
+// resolution to H1 from the Phase 1 review: nil pointer is the
+// canonical "unset" predicate, not map-key-presence.
+func TestApplyDefaults_NilPointerInMapTreatedAsUnset(t *testing.T) {
+	t.Parallel()
+
+	picks := NewPicks()
+	picks.Values["language"] = NewSingle("python")
+	// Explicitly nil — could arise from a generic merge helper or
+	// from cloning a Picks that had a nil entry. Per spec, this is
+	// "unset" and ApplyDefaults must fill the default.
+	picks.Values["infra"] = nil
+
+	out := ApplyDefaults(picks, testRegistry())
+
+	infra := out.Values["infra"]
+	if infra == nil || infra.Multi == nil {
+		t.Fatalf("infra default not applied to nil-in-map entry: %+v", infra)
+	}
+	if !reflect.DeepEqual(*infra.Multi, []string{"docker"}) {
+		t.Errorf("infra = %v, want [docker]", *infra.Multi)
+	}
+}
+
+// TestApplyDefaults_DeepCopiesMultiSlice: mutating the returned
+// Picks's multi-slice in place must not affect the input. Pins the
+// non-destructive contract beyond the map-key check in
+// TestApplyDefaults_NonDestructive (which only verifies keys aren't
+// added to the input).
+func TestApplyDefaults_DeepCopiesMultiSlice(t *testing.T) {
+	t.Parallel()
+
+	picks := NewPicks()
+	picks.Values["language"] = NewSingle("python")
+	picks.Values["infra"] = NewMulti([]string{"docker", "kubernetes"})
+
+	out := ApplyDefaults(picks, testRegistry())
+
+	(*out.Values["infra"].Multi)[0] = "MUTATED"
+	if (*picks.Values["infra"].Multi)[0] != "docker" {
+		t.Errorf("input slice aliased into output: %v", *picks.Values["infra"].Multi)
+	}
+}
+
 // TestApplyDefaults_LanguageUnsetSkipsSubtree: if no language is
 // chosen, ApplyDefaults must not fill in any language-nested
 // categories — there's no subtree to apply defaults from.

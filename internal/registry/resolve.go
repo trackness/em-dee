@@ -193,11 +193,9 @@ func optionExists(cat *Category, id string) bool {
 
 // isEmpty reports whether a *Value represents the explicit-none
 // state. Only used to enforce "required category cannot be empty"
-// at resolution time.
+// at resolution time — `resolveValue` always returns a non-nil
+// *Value or an error, so this is only called on non-nil values.
 func isEmpty(v *Value) bool {
-	if v == nil {
-		return true
-	}
 	if v.Single != nil {
 		return *v.Single == ""
 	}

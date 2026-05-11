@@ -3,6 +3,7 @@ package registry
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 )
@@ -61,6 +62,18 @@ func walk(fsys fs.FS, root string) (*Registry, error) {
 
 	for _, name := range dirs {
 		dir := path.Join(root, name)
+		// Explicit hygiene rule (spec §9.1: "every category folder
+		// contains exactly one _index.yaml"). Probe first so the
+		// error message names the rule rather than relying on the
+		// shape of fs.ReadFile's I/O error — a future os.DirFS swap
+		// that silently ignored missing files would otherwise go
+		// undetected.
+		if _, err := fs.Stat(fsys, path.Join(dir, "_index.yaml")); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, fmt.Errorf("%s: missing _index.yaml", dir)
+			}
+			return nil, err
+		}
 		cat, err := parseIndex(fsys, dir)
 		if err != nil {
 			return nil, err
@@ -79,7 +92,14 @@ func walk(fsys fs.FS, root string) (*Registry, error) {
 				}
 				var subs []*Category
 				for _, subName := range subDirs {
-					sub, err := parseIndex(fsys, path.Join(langDir, subName))
+					subDir := path.Join(langDir, subName)
+					if _, err := fs.Stat(fsys, path.Join(subDir, "_index.yaml")); err != nil {
+						if errors.Is(err, fs.ErrNotExist) {
+							return nil, fmt.Errorf("%s: missing _index.yaml", subDir)
+						}
+						return nil, err
+					}
+					sub, err := parseIndex(fsys, subDir)
 					if err != nil {
 						return nil, err
 					}

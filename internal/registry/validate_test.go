@@ -278,6 +278,17 @@ options:
 			},
 			wantSubs: []string{"language", "single"},
 		},
+		{
+			// H2 (review): the plan's Task 1.4 list explicitly
+			// includes "Missing _index.yaml" — pin the rule to a
+			// hygiene-style error rather than relying on
+			// fs.ReadFile's I/O error shape.
+			name: "missing _index.yaml in a category folder",
+			mutate: func(m fstest.MapFS) {
+				delete(m, "templates/20-infra/_index.yaml")
+			},
+			wantSubs: []string{"20-infra", "_index.yaml"},
+		},
 	}
 
 	for _, tc := range tests {

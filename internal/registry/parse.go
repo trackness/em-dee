@@ -123,23 +123,3 @@ func listCategoryDirs(fsys fs.FS, dir string) ([]string, error) {
 	sort.Strings(out)
 	return out, nil
 }
-
-// listLanguageDirs returns the language subfolders under
-// `templates/10-language/`. Names are not `NN-` prefixed (they're
-// just `python`, `go`, etc.); ordering matches the option list in the
-// language category's `_index.yaml`, which the caller threads in.
-func listLanguageDirs(fsys fs.FS, dir string) ([]string, error) {
-	entries, err := fs.ReadDir(fsys, dir)
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		out = append(out, e.Name())
-	}
-	sort.Strings(out)
-	return out, nil
-}
