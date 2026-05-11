@@ -12,8 +12,10 @@
 # rather than picking up upstream improvements automatically. The
 # upside is a stable signal-to-noise ratio; em-dee is small enough that
 # bespoke linter rules would be more friction than the value they add.
-
-version: "2"
+#
+# Schema: v1 (golangci-lint v1.x). Pinned to v1.62 in ci.yml. Do not
+# add v2-only keys (`version: "2"`, top-level `formatters:`, etc.) here
+# without bumping the action version in lockstep.
 
 run:
   timeout: 5m
@@ -21,7 +23,7 @@ run:
 
 linters:
   # disable-all + enable: only run linters we've explicitly opted into.
-  default: none
+  disable-all: true
   enable:
     # gofmt drift — already enforced by `task verify`'s gofmt step;
     # included here so the CI lint job is self-sufficient.
@@ -30,35 +32,22 @@ linters:
     - govet
     # errcheck catches unhandled errors — a frequent issue in Go.
     - errcheck
-    # staticcheck is the well-known "do not do that" rule pack.
+    # staticcheck is the well-known "do not do that" rule pack. In
+    # golangci-lint v1 `gosimple` is a separate linter (it's folded
+    # into staticcheck in v2); we enable both here. Once the runner
+    # ever bumps to v2.x, drop `gosimple` from this list.
     - staticcheck
-    # ineffassign / unused / gosimple are the other staticcheck-family
-    # rules included in the upstream "default" set; restated explicitly
-    # for transparency.
+    - gosimple
+    # ineffassign / unused complete the staticcheck-family rules we
+    # rely on; restated explicitly for transparency.
     - ineffassign
     - unused
 
-  settings:
-    gofmt:
-      # gofmt -s applies simplification rules (range over int composite
-      # literal sugar, etc.). Matches `task verify`'s gofmt expectations.
-      simplify: true
-
-  exclusions:
-    # Default exclusions from golangci-lint v2: cover well-known false
-    # positives (e.g. errcheck on Close() in deferred calls). Keeping the
-    # bundled list rather than reinventing it.
-    presets:
-      - common-false-positives
-      - legacy
-      - std-error-handling
-
-formatters:
-  enable:
-    - gofmt
-  settings:
-    gofmt:
-      simplify: true
+linters-settings:
+  gofmt:
+    # gofmt -s applies simplification rules (range over int composite
+    # literal sugar, etc.). Matches `task verify`'s gofmt expectations.
+    simplify: true
 
 issues:
   # Show every issue (default caps at 50 per linter, which can silently
