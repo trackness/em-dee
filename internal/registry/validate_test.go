@@ -300,6 +300,28 @@ options:
 			},
 			wantSubs: []string{"orphan", "stray.md"},
 		},
+		{
+			// M3 (review): the language option `file:` must be
+			// `<opt.ID>/base.md` — pin the invariant that `walk`
+			// silently depends on.
+			name: "language option file: does not match <opt.ID>/base.md",
+			mutate: func(m fstest.MapFS) {
+				// Set file: to a path that disagrees with opt.ID.
+				m["templates/10-language/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "Language"
+pick: single
+required: true
+options:
+  - id: python
+    display_name: "Python"
+    description: "Python"
+    file: backend-python/base.md
+`)}
+				// Keep the actual file in place so the
+				// missing-file rule isn't the one firing.
+				m["templates/10-language/backend-python/base.md"] = &fstest.MapFile{Data: []byte("python base\n")}
+			},
+			wantSubs: []string{"language", "python", "file"},
+		},
 	}
 
 	for _, tc := range tests {

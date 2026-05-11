@@ -210,7 +210,13 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 }
 
 // validateLanguageCategory enforces spec §9.1's special rules for the
-// language category: required: true, pick: single, no default.
+// language category: required: true, pick: single, no default, and
+// each option's `file:` is exactly `<opt.ID>/base.md`. The last rule
+// pins the implicit invariant that the walk relies on
+// (`path.Join(langRoot, opt.ID)` finds the language subtree) — break
+// it and `walk` looks in the wrong folder while the validator's file-
+// existence check passes because `opt.File`'s parent disagrees with
+// `opt.ID`.
 func validateLanguageCategory(cat *Category) []error {
 	var errs []error
 	if !cat.Required {
@@ -221,6 +227,13 @@ func validateLanguageCategory(cat *Category) []error {
 	}
 	if cat.DefaultSingle != "" || len(cat.DefaultMulti) > 0 {
 		errs = append(errs, fmt.Errorf("%s: language category must not have a default", cat.Path))
+	}
+	for _, opt := range cat.Options {
+		want := opt.ID + "/base.md"
+		if opt.File != want {
+			errs = append(errs, fmt.Errorf("%s: language option %q: file must be %q, got %q",
+				cat.Path, opt.ID, want, opt.File))
+		}
 	}
 	return errs
 }
