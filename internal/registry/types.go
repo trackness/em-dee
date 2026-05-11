@@ -5,9 +5,8 @@ import "io/fs"
 // LanguageCategoryID is the canonical id of the language category —
 // the only category in the schema that carries sub-categories. The
 // string was previously hardcoded across the CLI and registry
-// packages; centralising it here means a future rename (unlikely in
-// v1, but the spec doesn't forbid one) is a single edit, and the
-// references are grep-able by name.
+// packages; centralising it here means a future rename is a single
+// edit, and the references are grep-able by name.
 const LanguageCategoryID = "language"
 
 // Pick is the cardinality of a category — either "single" (choose one

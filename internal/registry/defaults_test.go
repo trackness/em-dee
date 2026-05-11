@@ -209,7 +209,7 @@ func TestApplyDefaults_NilPointerInMapTreatedAsUnset(t *testing.T) {
 	picks := NewPicks()
 	picks.Values["language"] = NewSingle("python")
 	// Explicitly nil — could arise from a generic merge helper or
-	// from cloning a Picks that had a nil entry. Per spec, this is
+	// from cloning a Picks that had a nil entry. This counts as
 	// "unset" and ApplyDefaults must fill the default.
 	picks.Values["infra"] = nil
 

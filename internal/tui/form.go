@@ -79,9 +79,9 @@ func BuildLanguageForm(reg *registry.Registry, out *string) (*huh.Form, error) {
 // ErrCancelled — wrapped over huh.ErrUserAborted so callers don't need
 // to import huh. Any other error propagates.
 //
-// The bound `out` variable starts empty; the spec mandates "no
-// pre-selected value." huh's Select still highlights the first row on
-// open, but the user must press Enter to commit.
+// The bound `out` variable starts empty; we require no pre-selected
+// value. huh's Select still highlights the first row on open, but the
+// user must press Enter to commit.
 func RunLanguageForm(reg *registry.Registry) (string, error) {
 	var chosen string
 	form, err := BuildLanguageForm(reg, &chosen)

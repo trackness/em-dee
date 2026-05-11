@@ -245,11 +245,10 @@ const updateInstallTimeout = 5 * time.Minute
 // windows where you can't rename an open file). Pulled out as a var
 // so tests substitute a no-op without touching the running binary.
 //
-// Tradeoff (per plan Task 6.4): minio/selfupdate over
-// inconshreveable/go-update. Both libraries do the same job; minio's
-// fork is the actively-maintained one (last release 2024+), with the
-// same Apply signature. inconshreveable's repo has been archived for
-// years, so even though the spec mentions either, picking the
+// Tradeoff: minio/selfupdate over inconshreveable/go-update. Both
+// libraries do the same job; minio's fork is the actively-maintained
+// one (last release 2024+), with the same Apply signature.
+// inconshreveable's repo has been archived for years, so the
 // maintained fork is the smaller-risk choice.
 var defaultUpdater updaterFunc = func(newBinary []byte) error {
 	return selfupdate.Apply(bytes.NewReader(newBinary), selfupdate.Options{})
