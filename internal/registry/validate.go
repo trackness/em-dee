@@ -193,6 +193,11 @@ func validateCategory(cat *Category, fsys fs.FS) []error {
 		// rule-named message instead.
 		if len(opt.File) == 0 {
 			errs = append(errs, fmt.Errorf("%s: option %q: file must be non-empty", cat.Path, opt.ID))
+			// Skip the orphan-scan registration for the empty path;
+			// writing `seenFile[""] = true` is harmless today (no .md
+			// can match) but would become wrong if seenFile gained any
+			// other consumer.
+			continue
 		}
 		if !strings.Contains(opt.File, "/") {
 			// Flat-category reference: pin against the orphan scan.
