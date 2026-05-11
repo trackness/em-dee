@@ -69,7 +69,7 @@ func BuildSecondaryForm(reg *registry.Registry, langID string, initial registry.
 	// rejected this case already.
 	var langCat *registry.Category
 	for _, c := range reg.Categories {
-		if c.ID == "language" {
+		if c.ID == registry.LanguageCategoryID {
 			langCat = c
 			break
 		}
@@ -101,7 +101,7 @@ func BuildSecondaryForm(reg *registry.Registry, langID string, initial registry.
 	// Then: the cross-cutting categories (every top-level category
 	// other than language) in manifest order.
 	for _, cat := range reg.Categories {
-		if cat.ID == "language" {
+		if cat.ID == registry.LanguageCategoryID {
 			continue
 		}
 		g, err := buildCategoryGroup(cat, cat.ID, initial, sf)
@@ -196,7 +196,7 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 
 	// Walk in render order for stability.
 	for _, cat := range reg.Categories {
-		if cat.ID == "language" {
+		if cat.ID == registry.LanguageCategoryID {
 			// Language subtree: only the chosen language's subs.
 			for _, sub := range cat.Subcategories[sf.langID] {
 				key := sf.langID + "." + sub.ID
@@ -271,7 +271,7 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 // option, which complicates the UI for no v1 benefit.
 func (sf *SecondaryForm) Picks() registry.Picks {
 	picks := registry.NewPicks()
-	picks.Values["language"] = registry.NewSingle(sf.langID)
+	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(sf.langID)
 
 	for key, v := range sf.singles {
 		if v == nil || *v == "" {

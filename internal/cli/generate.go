@@ -311,7 +311,7 @@ func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, e
 	// form 2's bound variables start pre-populated per spec §5.2
 	// paragraph 2.
 	picks := registry.NewPicks()
-	picks.Values["language"] = registry.NewSingle(lang)
+	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(lang)
 	picks = registry.ApplyDefaults(picks, reg)
 
 	if useDefaults {
@@ -380,8 +380,8 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 func countBlocks(reg *registry.Registry, picks registry.Picks) int {
 	n := 0
 	for _, cat := range reg.Categories {
-		if cat.ID == "language" {
-			v := picks.Values["language"]
+		if cat.ID == registry.LanguageCategoryID {
+			v := picks.Values[registry.LanguageCategoryID]
 			if v == nil || v.Single == nil || *v.Single == "" {
 				continue
 			}

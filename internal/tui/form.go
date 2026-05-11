@@ -40,7 +40,7 @@ func BuildLanguageForm(reg *registry.Registry, out *string) (*huh.Form, error) {
 
 	var lang *registry.Category
 	for _, c := range reg.Categories {
-		if c.ID == "language" {
+		if c.ID == registry.LanguageCategoryID {
 			lang = c
 			break
 		}
