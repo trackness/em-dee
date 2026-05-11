@@ -93,6 +93,16 @@ func fetchLatestRelease(ctx context.Context, client *http.Client, apiURL string)
 		return releasePayload{}, resp.StatusCode, fmt.Errorf("read response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		// Mirror runUpdateCheck's user-actionable messages for the two
+		// status codes the spec §12.6 calls out by name. Other non-200
+		// responses fall through to the generic shape so the caller can
+		// still see the upstream status + body fragment.
+		switch resp.StatusCode {
+		case http.StatusNotFound:
+			return releasePayload{}, resp.StatusCode, fmt.Errorf("no release found yet for trackness/em-dee (GitHub API returned 404)")
+		case http.StatusForbidden:
+			return releasePayload{}, resp.StatusCode, fmt.Errorf("GitHub API rate-limited or forbidden; set GITHUB_TOKEN to raise the limit")
+		}
 		return releasePayload{}, resp.StatusCode, fmt.Errorf("github api returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var p releasePayload

@@ -390,6 +390,80 @@ func TestUpdate_LiveCommandInstallNetworkFailure(t *testing.T) {
 	}
 }
 
+// TestRunUpdateInstall_RateLimited verifies that a 403 from the
+// GitHub API surfaces the user-actionable GITHUB_TOKEN hint on the
+// install path (spec §12.6). Previously the install path collapsed
+// all non-200 responses into a generic "github api returned 403", so
+// the hint that --check produces was lost — see PR #7 review item H1.
+func TestRunUpdateInstall_RateLimited(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"API rate limit exceeded"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	stub := updaterFunc(func(b []byte) error {
+		t.Errorf("updater must not run on metadata 403")
+		return nil
+	})
+	env := updateCheckEnv{
+		version: "1.2.3",
+		client:  srv.Client(),
+		exePath: "/usr/local/bin/em-dee",
+		apiURL:  srv.URL + "/releases/latest",
+		goos:    "linux",
+		goarch:  "amd64",
+	}
+	result, err := runUpdateInstall(context.Background(), env, stub)
+	if err == nil {
+		t.Errorf("expected error on 403")
+	}
+	if result.code == 0 {
+		t.Errorf("403 should not exit 0")
+	}
+	if !strings.Contains(result.message, "GITHUB_TOKEN") {
+		t.Errorf("403 message should mention GITHUB_TOKEN; got %q", result.message)
+	}
+}
+
+// TestRunUpdateInstall_NoReleaseYet verifies that a 404 from the
+// GitHub API surfaces the "no release found yet" message on the
+// install path, mirroring --check (spec §12.6, PR #7 review item H1).
+func TestRunUpdateInstall_NoReleaseYet(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"Not Found"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	stub := updaterFunc(func(b []byte) error {
+		t.Errorf("updater must not run on metadata 404")
+		return nil
+	})
+	env := updateCheckEnv{
+		version: "1.2.3",
+		client:  srv.Client(),
+		exePath: "/usr/local/bin/em-dee",
+		apiURL:  srv.URL + "/releases/latest",
+		goos:    "linux",
+		goarch:  "amd64",
+	}
+	result, err := runUpdateInstall(context.Background(), env, stub)
+	if err == nil {
+		t.Errorf("expected error on 404")
+	}
+	if result.code == 0 {
+		t.Errorf("404 should not exit 0")
+	}
+	if !strings.Contains(result.message, "no release found yet") {
+		t.Errorf("404 message should say 'no release found yet'; got %q", result.message)
+	}
+}
+
 // TestUpdate_LiveCommandInstallPackageManagerShortCircuit verifies the
 // install path refuses to run when the binary was installed via a
 // package manager (spec §12.6). Cobra → RunE → runUpdateInstall →
