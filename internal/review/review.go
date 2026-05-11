@@ -1,13 +1,12 @@
 // Package review shells out to `claude -p`, parses the JSON response,
 // and presents the result via lipgloss.
 //
-// Phase 5 lands this in four tasks:
+// Phase 5 lands this in four files:
 //
-//   - 5.1: embed the review prompt template (this file).
-//   - 5.2: define the Runner interface + default subprocess
-//     implementation, in this same file.
-//   - 5.3: Parse() in parse.go.
-//   - 5.4: Present() in present.go.
+//   - review.go (this file): package doc + embedded prompt template.
+//   - runner.go: the Runner interface + default ExecRunner.
+//   - parse.go (Task 5.3): three-tier JSON parse.
+//   - present.go (Task 5.4): lipgloss-rendered presentation.
 //
 // Higher-level wiring into `em-dee generate` lives in the cli package
 // (Task 5.5).
@@ -18,8 +17,8 @@ import (
 )
 
 // promptTemplate is the embedded review prompt. It is concatenated with
-// the rendered CLAUDE.md content before being passed to `claude -p` as
-// a single argv arg per spec §7.1.
+// the rendered CLAUDE.md content (via BuildPrompt) before being passed
+// to `claude -p` as a single argv arg per spec §7.1.
 //
 //go:embed prompt.md
 var promptTemplate string
