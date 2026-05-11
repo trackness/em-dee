@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"errors"
+	"net/http"
+
 	"github.com/spf13/cobra"
 
 	"github.com/trackness/em-dee/internal/registry"
@@ -22,6 +25,12 @@ type Options struct {
 	Commit   string
 	Date     string
 	Registry *registry.Registry
+
+	// updateHTTPClient and updateExePath are test seams for
+	// `em-dee update --check`. Production leaves them nil; the
+	// command falls back to a 15s-timeout http.Client and os.Executable.
+	updateHTTPClient *http.Client
+	updateExePath    string
 }
 
 // NewRootCmd builds the cobra command tree. It is the testable entry
@@ -47,6 +56,7 @@ func NewRootCmd(opts Options) *cobra.Command {
 	root.AddCommand(newListCmd(opts))
 	root.AddCommand(newShowCmd(opts))
 	root.AddCommand(newGenerateCmd(opts))
+	root.AddCommand(newUpdateCmd(opts))
 
 	// Make `em-dee` (no subcommand) behave as `em-dee generate` per
 	// spec §5 — `em-dee` is the default flow. We re-register the
@@ -69,6 +79,11 @@ func NewRootCmd(opts Options) *cobra.Command {
 // Execute is the single entrypoint from `cmd/em-dee/main.go`. The
 // signature is frozen per spec §12.7 so the version-embedding shape
 // stays stable across phases.
+//
+// Exit code mapping: subcommands that need a non-1 exit code (notably
+// `em-dee update --check`'s 0/1/2 three-state from spec §12.6)
+// return an *exitCodeError; Execute unwraps it. All other errors map
+// to exit code 1.
 func Execute(version, commit, date string) {
 	root := NewRootCmd(Options{
 		Version: version,
@@ -76,6 +91,11 @@ func Execute(version, commit, date string) {
 		Date:    date,
 	})
 	if err := root.Execute(); err != nil {
+		var ec *exitCodeError
+		if errors.As(err, &ec) {
+			exit(ec.code)
+			return
+		}
 		// cobra has already written the error to stderr; just propagate
 		// a non-zero exit code via os.Exit.
 		exit(1)
