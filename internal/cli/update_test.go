@@ -135,6 +135,41 @@ func TestDetectInstallMethod(t *testing.T) {
 	}
 }
 
+// TestUpdateCheck_DevBuildSentinel asserts that a dev-build version
+// (the `version="dev"` default from cmd/em-dee/main.go when built
+// without ldflags, plus the `dev-<sha>` shape goreleaser stamps for
+// nightlies) is treated as a distinct success state rather than the
+// misleading "update available: dev → 1.2.3". Exit code 0 so scripts
+// keyed off "you're up to date" don't flap on developer machines.
+func TestUpdateCheck_DevBuildSentinel(t *testing.T) {
+	cases := []struct {
+		name    string
+		version string
+	}{
+		{"bare dev", "dev"},
+		{"dev with sha", "dev-abc1234"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"tag_name":"v1.2.3"}`
+			got, _ := runUpdateCheck(updateCheckEnv{
+				version: tc.version,
+				client:  &http.Client{Transport: &stubTransport{resp: jsonResp(200, body)}},
+				exePath: "/usr/local/bin/em-dee",
+			})
+			if got.code != 0 {
+				t.Errorf("dev build %q: code = %d, want 0; msg=%q", tc.version, got.code, got.message)
+			}
+			if !strings.Contains(got.message, "dev build") {
+				t.Errorf("dev build %q: message should mention dev build; got %q", tc.version, got.message)
+			}
+			if !strings.Contains(got.message, "1.2.3") {
+				t.Errorf("dev build %q: message should mention latest release; got %q", tc.version, got.message)
+			}
+		})
+	}
+}
+
 func TestUpdateCheck_RefusesForPackageManager(t *testing.T) {
 	got, _ := runUpdateCheck(updateCheckEnv{
 		version: "1.2.3",

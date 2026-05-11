@@ -183,6 +183,23 @@ func runUpdateCheck(env updateCheckEnv) (updateCheckResult, error) {
 	}
 
 	current := strings.TrimPrefix(env.version, "v")
+
+	// Dev-build special case (spec §12.7): a binary built locally
+	// without ldflags carries version="dev" (and the goreleaser path
+	// stamps `dev-<sha>` for nightly-style builds). Comparing either
+	// against a release tag always trips the "update available"
+	// branch with the misleading "dev → 1.2.3" line. Treat the
+	// dev-build case as a distinct success state — exit 0, message
+	// names the latest release without claiming an "update is
+	// available" — so scripts pinned to exit 0 for "you're up to
+	// date" don't churn on developer machines.
+	if isDevBuildVersion(current) {
+		return updateCheckResult{
+			code:    0,
+			message: fmt.Sprintf("running a dev build (%s); latest release is %s — use --check after installing a tagged release for upgrade prompts", current, latest),
+		}, nil
+	}
+
 	if current == latest {
 		return updateCheckResult{
 			code:    0,
@@ -193,6 +210,18 @@ func runUpdateCheck(env updateCheckEnv) (updateCheckResult, error) {
 		code:    1,
 		message: fmt.Sprintf("update available: %s → %s", current, latest),
 	}, nil
+}
+
+// isDevBuildVersion reports whether a normalised version string is
+// the dev-build sentinel produced by `go build` without ldflags
+// (`dev`) or by a nightly-style goreleaser run (`dev-<sha>`). Spec
+// §12.7 enumerates these as the only non-release version shapes;
+// anything else is treated as a release tag and compared by string
+// equality. Semver comparison is deliberately out of scope for v1
+// (spec §12.6 only mandates the three-state exit code, not how
+// "newer" is decided).
+func isDevBuildVersion(v string) bool {
+	return v == "dev" || strings.HasPrefix(v, "dev-")
 }
 
 // newUpdateCmd builds `em-dee update`. Phase 3 only implements the
