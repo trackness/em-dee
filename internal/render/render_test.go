@@ -273,10 +273,3 @@ func TestRender_UnknownOptionIsError(t *testing.T) {
 		t.Errorf("error should mention offending option id; got: %v", err)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
