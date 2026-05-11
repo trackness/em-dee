@@ -40,6 +40,13 @@ type Options struct {
 	// the embedded catalog can't be parsed.
 	registryLoadErr error
 
+	// updateApply is the test seam for the `em-dee update` install
+	// pipeline (Task 6.4). Production leaves it nil; the command falls
+	// back to defaultUpdater which calls selfupdate.Apply. Tests pass a
+	// stub that captures the candidate binary bytes without touching
+	// the running executable.
+	updateApply updaterFunc
+
 	// reviewRunner is the test seam for `em-dee generate`'s Phase 5
 	// review path. Production leaves it nil; the generate command
 	// falls back to a `&review.ExecRunner{}`. Tests inject a stub

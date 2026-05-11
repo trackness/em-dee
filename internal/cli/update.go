@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/minio/selfupdate"
 	"github.com/spf13/cobra"
 )
 
@@ -83,13 +85,21 @@ func detectInstallMethod(exePath string) installMethod {
 	return installMethod{}
 }
 
-// updateCheckEnv is the dependency-injected context for runUpdateCheck.
-// Each field has a production default (filled by newUpdateCmd when not
-// otherwise supplied); tests construct the env directly.
+// updateCheckEnv is the dependency-injected context for runUpdateCheck
+// and runUpdateInstall (Task 6.4). Each field has a production default
+// (filled by newUpdateCmd when not otherwise supplied); tests construct
+// the env directly.
+//
+// apiURL / goos / goarch are seams for the install path: tests point
+// apiURL at an httptest.Server, and override goos/goarch to drive the
+// asset-name selection without touching runtime.GOOS.
 type updateCheckEnv struct {
 	version string
 	client  *http.Client
 	exePath string
+	apiURL  string
+	goos    string
+	goarch  string
 }
 
 // updateCheckResult is the structured outcome of a `--check` run. The
@@ -224,9 +234,30 @@ func isDevBuildVersion(v string) bool {
 	return v == "dev" || strings.HasPrefix(v, "dev-")
 }
 
-// newUpdateCmd builds `em-dee update`. Phase 3 only implements the
-// `--check` path (read-only); the actual self-install lands in Phase 6
-// (Task 6.4) after the release pipeline exists.
+// updateInstallTimeout is the upper bound on the download + verify +
+// apply pipeline. Larger than updateCheckTimeout because the asset
+// download is the long pole — a ~15 MiB archive over a slow link can
+// take a couple of minutes. Documented choice per plan Task 6.4.
+const updateInstallTimeout = 5 * time.Minute
+
+// defaultUpdater is the production binary-replace function: it wraps
+// minio/selfupdate.Apply, which handles atomic replace cross-platform
+// (renaming the running executable on unix, and a delayed rename on
+// windows where you can't rename an open file). Pulled out as a var
+// so tests substitute a no-op without touching the running binary.
+//
+// Tradeoff (per plan Task 6.4): minio/selfupdate over
+// inconshreveable/go-update. Both libraries do the same job; minio's
+// fork is the actively-maintained one (last release 2024+), with the
+// same Apply signature. inconshreveable's repo has been archived for
+// years, so even though the spec mentions either, picking the
+// maintained fork is the smaller-risk choice.
+var defaultUpdater updaterFunc = func(newBinary []byte) error {
+	return selfupdate.Apply(bytes.NewReader(newBinary), selfupdate.Options{})
+}
+
+// newUpdateCmd builds `em-dee update`. Both the read-only `--check`
+// path (Task 3.6) and the install path (Task 6.4) are wired here.
 func newUpdateCmd(opts Options) *cobra.Command {
 	var checkOnly bool
 	cmd := &cobra.Command{
@@ -242,17 +273,10 @@ func newUpdateCmd(opts Options) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !checkOnly {
-				return fmt.Errorf("only --check is implemented in this build; full self-update lands in Phase 6")
-			}
-
 			env := updateCheckEnv{
 				version: opts.Version,
 				client:  opts.updateHTTPClient,
 				exePath: opts.updateExePath,
-			}
-			if env.client == nil {
-				env.client = &http.Client{Timeout: updateCheckTimeout}
 			}
 			if env.exePath == "" {
 				if p, err := os.Executable(); err == nil {
@@ -260,21 +284,53 @@ func newUpdateCmd(opts Options) *cobra.Command {
 				}
 			}
 
-			// runUpdateCheck guarantees result.code is set even when
-			// err is non-nil; the error itself carries diagnostic
-			// detail already folded into result.message, so we drop
-			// it. If a `-v` / verbose flag lands later, route the
-			// error through that path.
-			result, _ := runUpdateCheck(env)
-			// Direct the message to the right stream: stdout for the
-			// happy paths (0/1) since scripts may want to read it,
-			// stderr for errors (2) so it doesn't pollute pipelines.
+			// runUpdateCheck (and runUpdateInstall) both guarantee
+			// result.code is set even when err is non-nil; the error
+			// itself carries diagnostic detail already folded into
+			// result.message, so we drop it. If a `-v` / verbose flag
+			// lands later, route the error through that path. Stream
+			// routing below: stdout for happy paths (0/1) so scripts
+			// can read it, stderr for errors (2) so it doesn't
+			// pollute pipelines.
 			out := cmd.OutOrStdout()
-			if result.code == 2 {
-				out = cmd.ErrOrStderr()
-			}
-			fmt.Fprintln(out, result.message)
+			errOut := cmd.ErrOrStderr()
 
+			if checkOnly {
+				// --check uses the lighter timeout (one API call only).
+				if env.client == nil {
+					env.client = &http.Client{Timeout: updateCheckTimeout}
+				}
+				result, _ := runUpdateCheck(env)
+				stream := out
+				if result.code == 2 {
+					stream = errOut
+				}
+				fmt.Fprintln(stream, result.message)
+				if result.code == 0 {
+					return nil
+				}
+				return &exitCodeError{code: result.code, msg: result.message}
+			}
+
+			// Real install path (Task 6.4). The pipeline downloads the
+			// platform archive + checksums.txt, verifies SHA256, extracts
+			// the binary, and atomically replaces the running executable
+			// via selfupdate.Apply (spec §12.6).
+			if env.client == nil {
+				env.client = &http.Client{Timeout: updateInstallTimeout}
+			}
+			updater := opts.updateApply
+			if updater == nil {
+				updater = defaultUpdater
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), updateInstallTimeout)
+			defer cancel()
+			result, _ := runUpdateInstall(ctx, env, updater)
+			stream := out
+			if result.code != 0 {
+				stream = errOut
+			}
+			fmt.Fprintln(stream, result.message)
 			if result.code == 0 {
 				return nil
 			}
