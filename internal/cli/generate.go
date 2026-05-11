@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -310,22 +312,50 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 //   - rename existing to CLAUDE.md.bak.<unix-ts> when force, then write
 //   - print backup path to stderr
 //   - never delete, always rename
+//
+// The non-force path uses os.OpenFile with O_CREATE|O_EXCL so the
+// existence check and the write happen atomically at the kernel
+// boundary — a separate Stat → WriteFile sequence races against any
+// concurrent process that drops a CLAUDE.md between the two calls,
+// clobbering work without a backup. The force path keeps the
+// rename-then-write shape because backing up requires we observe the
+// existing file before overwriting it; a race there is still
+// possible (another process could swap the file between Stat and
+// Rename) but the worst case is "we backed up the wrong content"
+// rather than "we lost data without a backup", which is acceptable
+// for a developer CLI.
 func writeOutput(stderr io.Writer, path string, content []byte, force bool) error {
-	if _, err := os.Stat(path); err == nil {
-		// File exists.
-		if !force {
-			return fmt.Errorf("%s exists. Pass --force to overwrite (current file will be backed up) or --out to write elsewhere", path)
+	if force {
+		// Force path: observe the existing file, rename to backup,
+		// then write. The Stat-then-Rename window is microseconds and
+		// the failure mode is "wrong backup", not "lost data".
+		if _, err := os.Stat(path); err == nil {
+			backup := path + ".bak." + strconv.FormatInt(time.Now().Unix(), 10)
+			if err := os.Rename(path, backup); err != nil {
+				return fmt.Errorf("backup %s: %w", path, err)
+			}
+			fmt.Fprintf(stderr, "backed up existing %s to %s\n", path, backup)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat %s: %w", path, err)
 		}
-		backup := path + ".bak." + strconv.FormatInt(time.Now().Unix(), 10)
-		if err := os.Rename(path, backup); err != nil {
-			return fmt.Errorf("backup %s: %w", path, err)
+		if err := os.WriteFile(path, content, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
 		}
-		fmt.Fprintf(stderr, "backed up existing %s to %s\n", path, backup)
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("stat %s: %w", path, err)
+		return nil
 	}
 
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	// Non-force path: atomic exclusive create. O_EXCL makes the
+	// create fail with EEXIST if the file appeared between any
+	// earlier check and this call, closing the TOCTOU window.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%s exists. Pass --force to overwrite (current file will be backed up) or --out to write elsewhere", path)
+		}
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	defer f.Close()
+	if _, err := f.Write(content); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
