@@ -5,8 +5,8 @@ options:
   - id: python
     display_name: "Python"
     description: "Python"
-    file: python.md
+    file: python/base.md
   - id: go
     display_name: "Go"
     description: "Go"
-    file: go.md
+    file: go/base.md

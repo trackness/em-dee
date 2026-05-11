@@ -34,6 +34,9 @@ func load(fsys fs.FS, root string) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := Validate(reg, fsys, root); err != nil {
+		return nil, err
+	}
 	return reg, nil
 }
 
