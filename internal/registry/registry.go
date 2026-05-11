@@ -2,7 +2,9 @@ package registry
 
 import (
 	"embed"
+	"errors"
 	"io/fs"
+	"path"
 )
 
 // templatesFS embeds the production templates tree at build time. The
@@ -35,24 +37,56 @@ func load(fsys fs.FS, root string) (*Registry, error) {
 	return reg, nil
 }
 
-// walk descends from `root` and assembles the Registry. Task 1.2
-// returns an empty Registry for an empty (or missing) `root`; Task 1.3
-// fills this out with `_index.yaml` parsing.
+// walk descends from `root` and assembles the Registry. An empty (or
+// missing) root yields an empty Registry with no error — this keeps
+// Task 1.2's "empty templates compiles" guarantee. Each top-level
+// `NN-name` directory becomes one Category; the `10-language` entry
+// recurses into per-language subfolders.
 func walk(fsys fs.FS, root string) (*Registry, error) {
 	reg := &Registry{}
 
-	entries, err := fs.ReadDir(fsys, root)
+	dirs, err := listCategoryDirs(fsys, root)
 	if err != nil {
-		// A missing root in the embedded production FS (templates/
-		// with only `.gitkeep`) is treated as "empty registry, no
-		// error" so Task 1.2's verification passes even before
-		// templates exist. Real validation in Task 1.4 will catch
-		// missing-but-required structure at the manifest level.
-		if _, statErr := fs.Stat(fsys, root); statErr != nil {
+		// Treat "root doesn't exist" as empty rather than error so
+		// the production embedded FS (only `.gitkeep` for now) loads
+		// cleanly. Other I/O errors do propagate.
+		if errors.Is(err, fs.ErrNotExist) {
 			return reg, nil
 		}
 		return nil, err
 	}
-	_ = entries
+
+	for _, name := range dirs {
+		dir := path.Join(root, name)
+		cat, err := parseIndex(fsys, dir)
+		if err != nil {
+			return nil, err
+		}
+		// Special-case the language category: descend into each
+		// language option's folder and collect its sub-categories.
+		// Per spec §4.1 the language category is the only one with
+		// subcategories; all others stay flat.
+		if name == "10-language" {
+			cat.Subcategories = map[string][]*Category{}
+			for _, opt := range cat.Options {
+				langDir := path.Join(dir, opt.ID)
+				subDirs, err := listCategoryDirs(fsys, langDir)
+				if err != nil && !errors.Is(err, fs.ErrNotExist) {
+					return nil, err
+				}
+				var subs []*Category
+				for _, subName := range subDirs {
+					sub, err := parseIndex(fsys, path.Join(langDir, subName))
+					if err != nil {
+						return nil, err
+					}
+					subs = append(subs, sub)
+				}
+				cat.Subcategories[opt.ID] = subs
+			}
+		}
+		reg.Categories = append(reg.Categories, cat)
+	}
+
 	return reg, nil
 }
