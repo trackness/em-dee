@@ -47,35 +47,6 @@ func TestBuildPrompt_AddsTrailingNewlineIfMissing(t *testing.T) {
 	}
 }
 
-// stubRunner implements Runner for parse and presentation tests, plus
-// the higher-level Review() wrapper test. The Func is what each test
-// case configures.
-type stubRunner struct {
-	fn func(ctx context.Context, prompt string) ([]byte, []byte, error)
-}
-
-func (s *stubRunner) Run(ctx context.Context, prompt string) ([]byte, []byte, error) {
-	return s.fn(ctx, prompt)
-}
-
-// TestRunner_StubReturnsStdout asserts the stub plumbs through cleanly
-// — a basic confidence check before the parse/present tests rely on
-// this seam.
-func TestRunner_StubReturnsStdout(t *testing.T) {
-	t.Parallel()
-	want := []byte(`{"verdict":"ok","summary":"fine","issues":[]}`)
-	r := &stubRunner{fn: func(_ context.Context, _ string) ([]byte, []byte, error) {
-		return want, nil, nil
-	}}
-	got, _, err := r.Run(context.Background(), "irrelevant")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if string(got) != string(want) {
-		t.Errorf("Run stdout: got %q want %q", got, want)
-	}
-}
-
 // TestExecRunner_ClaudeMissingReturnsSentinel asserts the LookPath
 // failure path: when `claude` is not on PATH, the runner returns
 // ErrClaudeNotFound without trying to spawn anything.
