@@ -1,0 +1,71 @@
+# golangci-lint configuration for em-dee.
+#
+# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.2
+# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.2
+#
+# Pinning the enabled linter set explicitly (rather than relying on the
+# bundled defaults) keeps `task verify` locally and the CI lint job in
+# lockstep — a future bump of golangci-lint's defaults can't silently
+# change the gate that gates merges to main.
+#
+# Tradeoff: an explicit list means we have to add new linters by hand
+# rather than picking up upstream improvements automatically. The
+# upside is a stable signal-to-noise ratio; em-dee is small enough that
+# bespoke linter rules would be more friction than the value they add.
+#
+# Schema: v2 (golangci-lint v2.x). Pinned to v2.12 in ci.yml. The v2
+# schema treats gofmt as a formatter rather than a linter, so it lives
+# under the top-level `formatters:` block instead of `linters.enable`;
+# listing it in both is rejected by the loader. Do not add v1-only keys
+# here without bumping the action pin in lockstep.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # default: none + enable: only run linters we've explicitly opted into.
+  default: none
+  enable:
+    # govet finds suspicious constructs; the language-team baseline.
+    - govet
+    # errcheck catches unhandled errors — a frequent issue in Go.
+    - errcheck
+    # staticcheck is the well-known "do not do that" rule pack. In
+    # golangci-lint v2, gosimple was folded into staticcheck, so we
+    # no longer enable it as a separate linter.
+    - staticcheck
+    # ineffassign / unused complete the staticcheck-family rules we
+    # rely on; restated explicitly for transparency.
+    - ineffassign
+    - unused
+
+  exclusions:
+    # Default exclusions from golangci-lint v2: cover well-known false
+    # positives (e.g. errcheck on Close() in deferred calls). Keeping
+    # the bundled list rather than reinventing it.
+    presets:
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+formatters:
+  # gofmt drift — already enforced by `task verify`'s gofmt step;
+  # included here so the CI lint job is self-sufficient. In v2 gofmt
+  # is a formatter, not a linter, so it must live under this block
+  # (and not also under `linters.enable`, which the loader rejects).
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      # gofmt -s applies simplification rules (range over int composite
+      # literal sugar, etc.). Matches `task verify`'s gofmt expectations.
+      simplify: true
+
+issues:
+  # Show every issue (default caps at 50 per linter, which can silently
+  # truncate signal in larger drops).
+  max-issues-per-linter: 0
+  max-same-issues: 0

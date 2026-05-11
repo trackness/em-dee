@@ -78,7 +78,7 @@ two-digit numeric prefix; that prefix dictates render order.
 ## Git workflow
 
 - **`main` is always green.** Every change goes through a PR with
-  review before merge; CI gates on top (Phase 6 onward).
+  review before merge; `.github/workflows/ci.yml` enforces it.
 - **Every change lives on a feature branch.** Naming is required:
   - `feat/<short-slug>` — new functionality.
   - `fix/<short-slug>` — bug fix.
@@ -102,10 +102,33 @@ two-digit numeric prefix; that prefix dictates render order.
 ## Required commands
 
 - `task verify` before every commit. Runs `gofmt`, `go vet`,
-  `go test ./...`, manifest hygiene as part of the test suite.
+  `go test ./...`, manifest hygiene as part of the test suite. CI
+  runs the same on push/PR via `.github/workflows/ci.yml` (matrix:
+  `stable` + `oldstable`; parallel `golangci-lint` job using
+  `.golangci.yml`).
 - `task build` for a local binary in `bin/em-dee`.
 - `task golden-update` to regenerate render fixtures (read the
   anti-patterns first).
+- `task release` runs `goreleaser release --snapshot --clean
+  --skip=publish` — local snapshot build only, never publishes. Real
+  releases happen via `.github/workflows/release.yml` on a `v*` tag
+  push.
+
+## Cutting a release
+
+Releases are tag-driven. To cut one:
+
+1. Ensure `main` is at the desired tip and CI is green.
+2. `git tag v<MAJOR>.<MINOR>.<PATCH>` on `main`, push the tag.
+3. `.github/workflows/release.yml` triggers, runs `goreleaser
+   release --clean`, attaches archives + `checksums.txt` to a
+   GitHub Release.
+4. The archive `name_template` is `em-dee_<os>_<arch>` (version
+   omitted) so `releases/latest/download/em-dee_<os>_<arch>.<ext>`
+   resolves predictably — `em-dee update` depends on this URL shape.
+
+No manual `goreleaser release` from a local machine for real
+releases; the workflow is the contract.
 
 ## Test seams
 

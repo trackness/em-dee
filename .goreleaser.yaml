@@ -1,0 +1,148 @@
+# .goreleaser.yaml — release pipeline for em-dee.
+#
+# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.4, §12.7
+# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.1
+#
+# Invoked by `.github/workflows/release.yml` on every `v*` tag push.
+# Locally testable via `goreleaser check` (validates config without
+# building) and `goreleaser build --snapshot --clean` (no publish).
+#
+# Schema version 2 is goreleaser's current major (since v2.x).
+version: 2
+
+project_name: em-dee
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: em-dee
+    # The hyphenated binary name is the spec's choice (§14). Matches the
+    # `em-dee_<os>_<arch>` archive name_template below; downstream
+    # self-update URL derivation depends on consistent naming.
+    binary: em-dee
+    main: ./cmd/em-dee
+    env:
+      - CGO_ENABLED=0
+    # Platform matrix per spec §12.4. Windows ARM64 is deferred — no
+    # demand signal yet and it'd double the windows artefact count.
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # Windows on ARM64: skipped per the comment above.
+      - goos: windows
+        goarch: arm64
+    # ldflags inject build-time metadata into cmd/em-dee/main.go's
+    # version/commit/date vars per spec §12.7. The variable paths match
+    # the declarations in cmd/em-dee/main.go.
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+archives:
+  - id: em-dee
+    ids:
+      - em-dee
+    # CRITICAL (spec §12.4): name_template omits the version so
+    # https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.<ext>
+    # resolves correctly. The release page itself still shows the
+    # version; only the archived filename is version-stripped. This is
+    # load-bearing for the self-update path in internal/cli/update.go.
+    name_template: "em-dee_{{ .Os }}_{{ .Arch }}"
+    # tar.gz on unix, zip on windows per spec §12.4.
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      # CLAUDE.md is the only file that always exists at the repo root
+      # alongside the binary right now (README.md and LICENSE land in
+      # Phase 8 / module identity tasks). goreleaser errors on missing
+      # literal paths, so we list only the present file; READMEs and
+      # LICENSE can be appended once they exist.
+      - CLAUDE.md
+
+checksum:
+  # SHA256 sums published as checksums.txt at a predictable URL inside
+  # each release. The self-update path downloads this file and verifies
+  # the archive against the matching line (spec §12.6 security).
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  # Local snapshot builds (`goreleaser build --snapshot --clean`) get a
+  # SemVer-looking version so the ldflags-injected `main.version` parses
+  # the same way as a real release tag.
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  # Auto-generate release notes from commit history since the last tag
+  # per spec §12.4. Conventional Commits group naturally below.
+  sort: asc
+  use: github
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Other work
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+
+release:
+  github:
+    owner: trackness
+    name: em-dee
+  # draft=false: goreleaser publishes the release directly. The tag
+  # itself is the gate — only pushes that match the workflow's `v*`
+  # filter ever get here.
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "v{{ .Version }}"
+
+# Homebrew tap declaration: DECLARED BUT COMMENTED OUT until the
+# `homebrew-trackness-tap` repository exists (spec §12.4). Enabling is
+# a one-line uncomment + setting HOMEBREW_TAP_GITHUB_TOKEN in the
+# release workflow's secrets. Leaving the block here as a template so
+# the future "enable Homebrew" change is one PR rather than a recall
+# of the spec.
+#
+# brews:
+#   - name: em-dee
+#     ids:
+#       - em-dee
+#     repository:
+#       owner: trackness
+#       name: homebrew-trackness-tap
+#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+#     directory: Formula
+#     homepage: https://github.com/trackness/em-dee
+#     description: Generate CLAUDE.md files from a curated block catalog
+#     license: MIT
+#     test: |
+#       system "#{bin}/em-dee version"
+#     install: |
+#       bin.install "em-dee"

@@ -1,0 +1,94 @@
+# CI workflow — em-dee.
+#
+# Spec: docs/superpowers/specs/2026-05-11-em-dee-design.md §12.2
+# Plan: docs/superpowers/plans/2026-05-11-em-dee-implementation.md Task 6.2
+#
+# Triggers on every push and PR; CI must be green for any merge to main
+# (branch protection enforces this — see §12.1).
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  # Read-only is sufficient for CI; release.yml elevates to contents:write.
+  contents: read
+
+# Cancel any superseded runs on the same ref so a force-push doesn't
+# leave stale runners burning compute.
+concurrency:
+  # ${{ github.workflow }} already evaluates to "CI" here — no extra
+  # prefix needed for uniqueness vs. the release workflow.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Matrix per spec §12.2: latest stable + N-1. Using the
+      # actions/setup-go aliases "stable" / "oldstable" so this tracks
+      # Go's release cadence automatically without needing to bump pins
+      # twice a year. Tradeoff: a stable release that breaks our build
+      # would silently fail CI until pinned; mitigated by quick triage
+      # because both rows fail together when the toolchain is the cause.
+      matrix:
+        go: ["stable", "oldstable"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          # cache: true is the v5 default; explicit for clarity.
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: task verify
+        run: task verify
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          # Pin the runner to a known-good golangci-lint version. v2.12
+          # is the current stable line as of 2026-05-11. The v1.62
+          # binary was built against Go 1.23 and refuses to load against
+          # this repo's `go 1.25.8` go.mod target; v2.x lifts that floor
+          # and matches the v2 schema used by .golangci.yml.
+          #
+          # The action major version must be >= v7 to install
+          # golangci-lint v2 (v6 hard-rejects v2.* version strings).
+          # v8 is the current stable major as of 2026-05-11.
+          version: v2.12.2
+          # No --config arg: golangci-lint discovers .golangci.yml at
+          # the repo root, which pins the enabled set explicitly. In v2
+          # gosimple is folded into staticcheck and gofmt is a formatter
+          # rather than a linter. The rationale lives in .golangci.yml.
+          args: --timeout=5m

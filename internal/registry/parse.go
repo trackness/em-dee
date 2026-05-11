@@ -72,12 +72,11 @@ func parseIndex(fsys fs.FS, dir string) (*Category, error) {
 	}
 
 	for _, o := range doc.Options {
-		cat.Options = append(cat.Options, Option{
-			ID:          o.ID,
-			DisplayName: o.DisplayName,
-			Description: o.Description,
-			File:        o.File,
-		})
+		// optionEntry and Option are field-identical (the entry type
+		// exists solely to carry the `yaml:` tags during decode); a
+		// direct conversion is clearer than restating each field and
+		// keeps staticcheck's S1016 quiet.
+		cat.Options = append(cat.Options, Option(o))
 	}
 
 	if !doc.Default.IsZero() {
