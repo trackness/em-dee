@@ -65,8 +65,8 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 
 	// Form 1: `language.<lang>` — first segment is the literal word
 	// "language" and the registry has a category with id "language".
-	if segs[0] == "language" && len(segs) == 2 {
-		langCat := reg.FindCategory("language")
+	if segs[0] == registry.LanguageCategoryID && len(segs) == 2 {
+		langCat := reg.FindCategory(registry.LanguageCategoryID)
 		if langCat == nil {
 			return nil, fmt.Errorf("show %s: no `language` category in registry", ref)
 		}
@@ -79,7 +79,7 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 	// Form 2: first segment is a known language id. Walk
 	// language.Subcategories[<lang>] for the second-segment category,
 	// then resolve the third-segment option.
-	langCat := reg.FindCategory("language")
+	langCat := reg.FindCategory(registry.LanguageCategoryID)
 	if langCat != nil && langCat.HasOption(segs[0]) {
 		if len(segs) != 3 {
 			return nil, fmt.Errorf("show %s: language-nested reference must be <lang>.<category>.<option>", ref)

@@ -71,7 +71,7 @@ func buildKeyIndex(reg *Registry) map[string]*Category {
 	index := map[string]*Category{}
 	for _, cat := range reg.Categories {
 		index[cat.ID] = cat
-		if cat.ID == "language" {
+		if cat.ID == LanguageCategoryID {
 			for langID, subs := range cat.Subcategories {
 				for _, sub := range subs {
 					index[langID+"."+sub.ID] = sub

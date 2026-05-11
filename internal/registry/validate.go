@@ -83,7 +83,7 @@ func validateLanguageCategoryIDCollisions(reg *Registry) []error {
 	topLevelIDs := map[string]bool{}
 	for _, cat := range reg.Categories {
 		topLevelIDs[cat.ID] = true
-		if cat.ID == "language" {
+		if cat.ID == LanguageCategoryID {
 			langCat = cat
 		}
 	}

@@ -26,14 +26,14 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 	// downstream consumer of the language subtree wouldn't see it
 	// here. Re-read from `out` after `fillIfUnset` if that changes.
 	var chosenLang string
-	if v, ok := picks.Values["language"]; ok && v != nil && v.Single != nil {
+	if v, ok := picks.Values[LanguageCategoryID]; ok && v != nil && v.Single != nil {
 		chosenLang = *v.Single
 	}
 
 	for _, cat := range reg.Categories {
 		switch cat.ID {
-		case "language":
-			fillIfUnset(out, "language", cat)
+		case LanguageCategoryID:
+			fillIfUnset(out, LanguageCategoryID, cat)
 		default:
 			fillIfUnset(out, cat.ID, cat)
 		}
@@ -42,7 +42,7 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 		// subcategories. If language is unset, skip the entire
 		// subtree — defaulting framework / logging without a
 		// language to anchor them would be meaningless.
-		if cat.ID == "language" && chosenLang != "" {
+		if cat.ID == LanguageCategoryID && chosenLang != "" {
 			for _, sub := range cat.Subcategories[chosenLang] {
 				key := chosenLang + "." + sub.ID
 				fillIfUnset(out, key, sub)

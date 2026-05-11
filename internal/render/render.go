@@ -44,7 +44,7 @@ func Render(reg *registry.Registry, picks registry.Picks) ([]byte, error) {
 	var blocks [][]byte
 
 	for _, cat := range reg.Categories {
-		if cat.ID == "language" {
+		if cat.ID == registry.LanguageCategoryID {
 			langBlocks, err := renderLanguage(reg, cat, picks)
 			if err != nil {
 				return nil, err
@@ -68,7 +68,7 @@ func Render(reg *registry.Registry, picks registry.Picks) ([]byte, error) {
 // emitted — including no sub-category content, because the subtree
 // only makes sense once a language anchors it.
 func renderLanguage(reg *registry.Registry, langCat *registry.Category, picks registry.Picks) ([][]byte, error) {
-	v := picks.Values["language"]
+	v := picks.Values[registry.LanguageCategoryID]
 	if v == nil || v.Single == nil || *v.Single == "" {
 		return nil, nil
 	}

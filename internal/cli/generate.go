@@ -185,7 +185,7 @@ func registerCategoryFlags(fs *pflag.FlagSet, reg *registry.Registry, flags *gen
 
 		// Language gets its sub-categories registered with the
 		// `<lang>-<sub>` form, one per option in the language category.
-		if cat.ID == "language" {
+		if cat.ID == registry.LanguageCategoryID {
 			for _, opt := range cat.Options {
 				subs := cat.Subcategories[opt.ID]
 				for _, sub := range subs {
@@ -241,7 +241,7 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 
 	// Phase 3 has no interactive flow. If language is unset and
 	// --use-defaults wasn't given, error clearly.
-	if _, hasLang := selection["language"]; !hasLang && !flags.useDefaults {
+	if _, hasLang := selection[registry.LanguageCategoryID]; !hasLang && !flags.useDefaults {
 		return fmt.Errorf("language is required; pass --language=<id> or run interactively (interactive flow lands in Phase 4)")
 	}
 
