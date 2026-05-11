@@ -48,3 +48,19 @@ func TestStyles_Render(t *testing.T) {
 		}
 	}
 }
+
+// TestSeverityInfo_IsNeutral pins the §7.4 "neutral info" contract:
+// SeverityInfo.Render(s) returns s byte-equal — no ANSI, no padding,
+// no width transforms. The zero-style is deliberate (see styles.go).
+// A future PR that accidentally adds a foreground colour to
+// SeverityInfo would fail this test; deliberate changes must update
+// the spec first.
+func TestSeverityInfo_IsNeutral(t *testing.T) {
+	t.Parallel()
+
+	for _, s := range []string{"info", "", "multi line\nstring", "with-symbols-✓"} {
+		if got := SeverityInfo.Render(s); got != s {
+			t.Errorf("SeverityInfo.Render(%q) = %q; want byte-equal (§7.4 'neutral')", s, got)
+		}
+	}
+}

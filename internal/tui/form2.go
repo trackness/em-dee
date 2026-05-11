@@ -280,9 +280,9 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 // (`--<cat>=` per spec §5.1) — interactive users who want zero blocks
 // from a defaulted multi-pick must exit and re-run with the empty
 // flag. This was a v1 scope call (no sentinel "explicit none" option
-// to keep the UI simple); a follow-up issue captures the question of
-// whether v2 should expose it. The flag layer remains the canonical
-// surface for explicit-empty.
+// to keep the UI simple); whether v2 should expose this in the
+// interactive flow is a future question, not v1 scope. The flag
+// layer remains the canonical surface for explicit-empty.
 func (sf *SecondaryForm) Picks() registry.Picks {
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(sf.langID)
