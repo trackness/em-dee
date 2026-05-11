@@ -54,6 +54,16 @@ var (
 	// SeverityInfo / Warning / Error per spec §7.4 ("info=neutral,
 	// warning=yellow, error=red"). Placeholders for Phase 5; exposed
 	// now so the styles live in one file.
+	//
+	// SeverityInfo intent (PR #5 review question): the zero-foreground
+	// style is **deliberate**, not an oversight — spec §7.4 names info
+	// as "neutral", which the lipgloss render path passes through as
+	// the terminal's default foreground. The Phase 5 consumer
+	// (ultraviolet renderer or otherwise) should treat
+	// `SeverityInfo.Render(s) == s` as the contract: any visible
+	// adornment (e.g. a glyph) belongs to the consumer, not the style.
+	// If a future Phase 5 change needs a non-empty info color, update
+	// the spec first and then this declaration.
 	SeverityInfo    = lipgloss.NewStyle()
 	SeverityWarning = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	SeverityError   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
