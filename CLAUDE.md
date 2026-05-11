@@ -107,6 +107,29 @@ two-digit numeric prefix; that prefix dictates render order.
 - `task golden-update` to regenerate render fixtures (read the
   anti-patterns first).
 
+## Test seams
+
+`internal/cli.Options` carries optional test-injection fields. In
+production these are all nil and the code falls back to real
+implementations; tests pass them to drive code paths without hitting
+the real world. The current set:
+
+- `Registry` — a pre-built `*registry.Registry`. Skips `registry.Load()`.
+- `registryLoadErr` — forces `resolveRegistry` to surface a failure
+  (used by the generate-handles-broken-registry test).
+- `updateHTTPClient` — `http.Client` for `em-dee update --check`'s
+  GitHub API call.
+- `updateExePath` — overrides `os.Executable()` for install-method
+  detection tests.
+- `updateApply` — overrides the binary swap in `em-dee update`.
+- `reviewRunner` — `review.Runner` for the claude-review pipeline;
+  production uses `&review.ExecRunner{}`.
+
+When adding a new external dependency to a CLI subcommand, add a
+seam to `Options` rather than reaching out to package globals or
+`os.Exit` directly. The pattern is uniform across the package and
+tests are the only consumer.
+
 ## Project state
 
 Implementation is in progress. The plan

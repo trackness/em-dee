@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/trackness/em-dee/internal/registry"
+	"github.com/trackness/em-dee/internal/review"
 )
 
 // Options carries the build-time metadata and the (optional) Registry
@@ -38,6 +39,14 @@ type Options struct {
 	// the H2 regression test that exercises generate's behaviour when
 	// the embedded catalog can't be parsed.
 	registryLoadErr error
+
+	// reviewRunner is the test seam for `em-dee generate`'s Phase 5
+	// review path. Production leaves it nil; the generate command
+	// falls back to a `&review.ExecRunner{}`. Tests inject a stub
+	// runner (see internal/cli/review_test.go) so the parse / present
+	// / failure-mode branches can be driven without a real `claude`
+	// binary or network.
+	reviewRunner review.Runner
 }
 
 // NewRootCmd builds the cobra command tree. It is the testable entry

@@ -1,0 +1,16 @@
+Sure, here's the review:
+
+{
+  "verdict": "warnings",
+  "summary": "One stale example.",
+  "issues": [
+    {
+      "severity": "info",
+      "location": "Testing",
+      "issue": "Old command",
+      "suggestion": "Update it"
+    }
+  ]
+}
+
+Let me know if you have follow-up questions.

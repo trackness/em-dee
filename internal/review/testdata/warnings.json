@@ -1,0 +1,18 @@
+{
+  "verdict": "warnings",
+  "summary": "Two minor issues found.",
+  "issues": [
+    {
+      "severity": "warning",
+      "location": "Build",
+      "issue": "Missing reference to lockfile commit policy",
+      "suggestion": "Add a one-line note: commit lockfiles for reproducible builds"
+    },
+    {
+      "severity": "info",
+      "location": "Testing",
+      "issue": "Pytest invocation example is stale",
+      "suggestion": "Use `pytest -q` instead of `py.test`"
+    }
+  ]
+}
