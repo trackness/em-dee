@@ -147,7 +147,9 @@ func TestGenerate_ForceBacksUpExistingFile(t *testing.T) {
 	buf := &bytes.Buffer{}
 	root.SetOut(buf)
 	root.SetErr(buf)
-	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--out=" + out, "--force"})
+	// --no-review keeps this test focused on write semantics; the
+	// review path is covered by review_test.go.
+	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--out=" + out, "--force", "--no-review"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -266,7 +268,9 @@ func TestGenerate_SuccessLineOnStderr(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--out=" + out})
+	// --no-review focuses this test on the success-line wording; the
+	// review path is covered by review_test.go.
+	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--out=" + out, "--no-review"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/trackness/em-dee/internal/registry"
 	"github.com/trackness/em-dee/internal/render"
+	"github.com/trackness/em-dee/internal/review"
 	"github.com/trackness/em-dee/internal/tui"
 )
 
@@ -45,8 +48,10 @@ type generateFlags struct {
 	force       bool
 	dryRun      bool
 	useDefaults bool
-	// review-related flags are accepted-but-unused in Phase 3 per the
-	// plan; behaviour lands in Phase 5.
+	// Review-related flags per spec §7.7. `noReview` flips the default
+	// `--review=true` off. `reviewOut` is an optional path the parsed
+	// JSON (or §7.7 sentinel shape) is written to. `reviewTimeout`
+	// overrides the §7.6 default; empty means "use the default".
 	noReview      bool
 	review        bool
 	reviewOut     string
@@ -117,17 +122,14 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "write to stdout instead of disk; skips existing-file check")
 	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept defaults for every category except --language (which must still be supplied; the interactive language prompt lands in Phase 4)")
 
-	// Accepted-but-unused review flags. Wired in Phase 5; declaring
-	// them now avoids "unknown flag" errors when users iterate on
-	// scripts before the review path lands.
-	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (Phase 5)")
-	cmd.Flags().BoolVar(&flags.review, "review", false, "run the claude review (Phase 5)")
-	cmd.Flags().StringVar(&flags.reviewOut, "review-out", "", "write review JSON to this path (Phase 5)")
-	cmd.Flags().StringVar(&flags.reviewTimeout, "review-timeout", "", "review subprocess timeout (Phase 5)")
-	_ = cmd.Flags().MarkHidden("no-review")
-	_ = cmd.Flags().MarkHidden("review")
-	_ = cmd.Flags().MarkHidden("review-out")
-	_ = cmd.Flags().MarkHidden("review-timeout")
+	// Review flags per spec §7.7. `--review` defaults to true; users
+	// pass `--no-review` to skip. cobra synthesises `--no-review` from
+	// the `--review` BoolVar via the "--no-<name>" convention, but we
+	// expose both names explicitly so `--help` lists them.
+	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing")
+	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (overrides --review)")
+	cmd.Flags().StringVar(&flags.reviewOut, "review-out", "", "write the parsed review JSON to this path")
+	cmd.Flags().StringVar(&flags.reviewTimeout, "review-timeout", "", "override the review subprocess deadline (Go duration, default 60s)")
 
 	// Per-category flags, derived from the registry. We resolve the
 	// registry once at command-construction time. If Load() fails
@@ -165,7 +167,7 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 		if err != nil {
 			return err
 		}
-		return runGenerate(cmd, reg, flags)
+		return runGenerate(cmd, reg, flags, opts)
 	}
 }
 
@@ -228,8 +230,9 @@ func flagUsage(cat *registry.Category) string {
 
 // runGenerate is the actual pipeline. Separating it from the cobra
 // closure keeps RunE small and lets tests poke individual stages
-// later if needed.
-func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlags) error {
+// later if needed. `opts` flows through so the optional review-runner
+// injection (Options.reviewRunner) reaches finishGenerate.
+func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlags, opts Options) error {
 	// Build the selection map from flags that the user actually set
 	// (Changed()==true). This is the tri-state seam: an unchanged
 	// flag is "unset" (omitted from the map); a changed flag with
@@ -263,7 +266,7 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 			}
 			return err
 		}
-		return finishGenerate(cmd, reg, picks, flags)
+		return finishGenerate(cmd, reg, picks, flags, opts)
 	}
 
 	// Non-interactive path. `--language` is required: spec §5.3
@@ -289,7 +292,7 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	// Fill defaults for omitted categories.
 	picks = registry.ApplyDefaults(picks, reg)
 
-	return finishGenerate(cmd, reg, picks, flags)
+	return finishGenerate(cmd, reg, picks, flags, opts)
 }
 
 // runInteractive drives the two-phase huh flow per spec §5.2: form 1
@@ -349,8 +352,8 @@ func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, e
 
 // finishGenerate is the shared tail of both the interactive and
 // non-interactive paths: required-category check, render, write (or
-// dry-run to stdout), success line.
-func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags) error {
+// dry-run to stdout), success line, then (Phase 5) the claude review.
+func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags, opts Options) error {
 	// Required-category check after defaults: a required category
 	// with no value at this point (no default, no user pick) is a
 	// hard error. ResolveSelection already rejected explicit-empty
@@ -378,7 +381,19 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 		return err
 	}
 
-	// Dry-run: stdout, skip existing-file check and success line.
+	// --review-timeout parse upfront so we fail before writing if the
+	// duration string is bogus. Empty means "use the default".
+	timeout := review.DefaultTimeout
+	if flags.reviewTimeout != "" {
+		d, err := time.ParseDuration(flags.reviewTimeout)
+		if err != nil {
+			return fmt.Errorf("--review-timeout: %w", err)
+		}
+		timeout = d
+	}
+
+	// Dry-run: stdout, skip existing-file check and success line and
+	// review (the file isn't written, so review would be meaningless).
 	// The success line is a side-channel for human users; piping
 	// dry-run output into another tool shouldn't get it mixed in.
 	if flags.dryRun {
@@ -396,7 +411,133 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 	// produce a CLAUDE.md path-confused tee.
 	blocks := countBlocks(reg, picks)
 	fmt.Fprintln(cmd.ErrOrStderr(), tui.SuccessLine(flags.out, blocks, len(content)))
-	return nil
+
+	// Review per spec §7. --no-review wins over --review (which is on
+	// by default), so any --no-review short-circuits.
+	if flags.noReview {
+		return nil
+	}
+	return runReview(cmd, content, flags, opts, timeout)
+}
+
+// runReview drives the spec §7 review flow: pick the runner (from
+// Options or a default ExecRunner), build the prompt, call the runner
+// under a timeout, parse, present, write `--review-out`, and return
+// either nil (exit 0) or an exitCodeError{code: 2} (verdict:problems
+// per spec §7.5).
+//
+// Failure-mode mapping per spec §7.6 — `claude` not on PATH, timeout,
+// non-zero exit — all print a note on stderr and return nil so exit
+// stays 0. Parse failure (tier 3) also returns nil.
+//
+// Exit-code tradeoff (plan Task 5.5): rather than calling os.Exit(2)
+// from inside RunE — which would skip cobra's deferred cleanup and
+// muddy test invocations — we return a `*exitCodeError{code: 2}`. The
+// root-level Execute (already in place for `em-dee update --check`)
+// unwraps it and calls os.Exit(2). cobra's default exit-on-error is 1,
+// so the exitCodeError seam is the cleanest way to thread spec §7.5's
+// exit 2 through.
+func runReview(cmd *cobra.Command, content []byte, flags *generateFlags, opts Options, timeout time.Duration) error {
+	runner := opts.reviewRunner
+	if runner == nil {
+		runner = &review.ExecRunner{}
+	}
+
+	prompt := review.BuildPrompt(content)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	stdout, runnerStderr, err := runner.Run(ctx, prompt)
+
+	// §7.6 failure modes. Each prints a note and returns nil → exit 0.
+	if err != nil {
+		switch {
+		case errors.Is(err, review.ErrClaudeNotFound):
+			fmt.Fprintln(cmd.ErrOrStderr(), "note: claude CLI not found; skipping review")
+		case errors.Is(err, review.ErrTimeout):
+			fmt.Fprintf(cmd.ErrOrStderr(), "note: claude review timed out after %s\n", timeout)
+		default:
+			fmt.Fprintln(cmd.ErrOrStderr(), "claude review failed:")
+			if len(runnerStderr) > 0 {
+				cmd.ErrOrStderr().Write(runnerStderr)
+				if runnerStderr[len(runnerStderr)-1] != '\n' {
+					fmt.Fprintln(cmd.ErrOrStderr())
+				}
+			} else {
+				fmt.Fprintln(cmd.ErrOrStderr(), err)
+			}
+		}
+		return nil
+	}
+
+	// Parse the runner output. Parse() never returns an error — tier 3
+	// is the fallback. So the only failure surface here is os write
+	// from Present, which we ignore (presentation is best-effort).
+	res, _ := review.Parse(stdout)
+
+	// Detect terminal width for Present's wrap. Falls back to 100 cols
+	// (review.Present handles termWidth <= 0). We probe stderr's fd
+	// because that's where Present's output is being sent.
+	w := terminalWidth(cmd.ErrOrStderr())
+
+	review.Present(cmd.ErrOrStderr(), res, w)
+
+	// --review-out per §7.7. The on-disk shape differs slightly from
+	// the in-memory ReviewResult: tier 3 must produce the sentinel
+	// JSON exactly as §7.7 specifies (verdict / summary / raw / issues).
+	if flags.reviewOut != "" {
+		if err := writeReviewOut(flags.reviewOut, res); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "note: writing --review-out failed: %v\n", err)
+			// Fall through — failing to write the side-file should not
+			// invalidate the verdict-based exit-code mapping below.
+		}
+	}
+
+	// §7.5 exit code mapping.
+	switch res.Verdict {
+	case review.VerdictProblems:
+		return &exitCodeError{code: 2, msg: "claude review reported problems"}
+	default:
+		return nil
+	}
+}
+
+// writeReviewOut serialises a ReviewResult to JSON at path. For tier
+// 1/2 results, the natural ReviewResult shape is used (the `raw` field
+// is omitted via `omitempty` when empty). For tier 3 (unstructured),
+// the §7.7 sentinel shape is produced verbatim — `issues` is
+// guaranteed to be a JSON array (`[]`) even if the parsed value left it
+// nil, so consumers that always type the field as an array don't break.
+func writeReviewOut(path string, res review.ReviewResult) error {
+	// Marshal in a stable shape. The struct already encodes verdict /
+	// summary / issues / raw via JSON tags; we just need to ensure
+	// `issues` is non-nil so it serialises as `[]` not `null`.
+	out := res
+	if out.Issues == nil {
+		out.Issues = []review.Issue{}
+	}
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(path, data, 0o644)
+}
+
+// terminalWidth returns the column count for w if it's a TTY, else 0.
+// The cli layer is the right place to do this — the review package
+// stays I/O-pure by taking termWidth as an int.
+func terminalWidth(w io.Writer) int {
+	type fdHaver interface{ Fd() uintptr }
+	f, ok := w.(fdHaver)
+	if !ok {
+		return 0
+	}
+	width, _, err := term.GetSize(int(f.Fd()))
+	if err != nil {
+		return 0
+	}
+	return width
 }
 
 // countBlocks returns the number of block files that contributed to
