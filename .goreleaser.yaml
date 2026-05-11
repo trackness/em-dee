@@ -67,12 +67,16 @@ archives:
         formats:
           - zip
     files:
-      # CLAUDE.md is the only file that always exists at the repo root
-      # alongside the binary right now (README.md and LICENSE land in
-      # Phase 8 / module identity tasks). goreleaser errors on missing
-      # literal paths, so we list only the present file; READMEs and
-      # LICENSE can be appended once they exist.
-      - CLAUDE.md
+      # CRITICAL: do NOT bundle CLAUDE.md here. The README's install
+      # snippets use `tar -xz` with no `-C` flag, so anything in the
+      # archive root extracts into the user's CWD. Users naturally run
+      # the install command inside a project root that already has a
+      # `CLAUDE.md`, and a bundled `CLAUDE.md` silently clobbers it.
+      # `LICENSE` and `README.md` are safe to ship — they're the
+      # canonical companion files for a binary release and don't
+      # collide with user project content.
+      - LICENSE
+      - README.md
 
 checksum:
   # SHA256 sums published as checksums.txt at a predictable URL inside
