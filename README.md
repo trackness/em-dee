@@ -16,21 +16,37 @@ Three install paths. Pick whichever fits your environment.
 go install github.com/trackness/em-dee/cmd/em-dee@latest
 ```
 
-**Direct download** (any platform; recommended for non-Go users). Substitute
-`<os>` (`darwin`, `linux`, `windows`) and `<arch>` (`amd64`, `arm64`) for your
-platform:
+**Direct download** (recommended for non-Go users). Copy-paste the snippet
+for your platform:
+
+*macOS (Apple Silicon)*
 
 ```sh
-curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_<os>_<arch>.tar.gz | tar -xz
+curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_darwin_arm64.tar.gz | tar -xz
 ```
 
-Or auto-detect via `uname` (macOS / Linux only — Windows ships a `.zip`
-and Git-Bash's `uname -s` reports `mingw64_nt-...`, so Windows users
-should stick with the placeholder form above and use
-`em-dee_windows_amd64.zip`):
+*macOS (Intel)*
 
 ```sh
-curl -fsSL "https://github.com/trackness/em-dee/releases/latest/download/em-dee_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar -xz
+curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_darwin_amd64.tar.gz | tar -xz
+```
+
+*Linux (x86_64)*
+
+```sh
+curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_linux_amd64.tar.gz | tar -xz
+```
+
+*Linux (ARM64)*
+
+```sh
+curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_linux_arm64.tar.gz | tar -xz
+```
+
+*Windows (x86_64, PowerShell)*
+
+```powershell
+Invoke-WebRequest -Uri https://github.com/trackness/em-dee/releases/latest/download/em-dee_windows_amd64.zip -OutFile em-dee.zip; Expand-Archive em-dee.zip
 ```
 
 **Homebrew** (post-tap-setup; see [spec section 12.4](docs/superpowers/specs/2026-05-11-em-dee-design.md)
@@ -43,16 +59,38 @@ brew install trackness/tap/em-dee
 
 ## Usage
 
+`em-dee` with no subcommand is the interactive entrypoint; on a TTY it
+prompts for language and each category. In non-interactive contexts
+(CI, pipes, `Makefile` recipes), pass `--language=<id>` and any other
+category flags — em-dee errors out instead of half-prompting.
+
 | Command | Description |
 | --- | --- |
-| `em-dee` | Interactive flow on a TTY — prompts for language and each category. In non-interactive contexts (CI, pipes, `Makefile` recipes), pass `--language=<id>` and any other category flags; em-dee errors out instead of half-prompting. |
-| `em-dee generate --language=python --python-logging=loguru` | Non-interactive generation. Flag names use dashes, not dots (`--python-logging`, not `--python.logging`). |
-| `em-dee generate --use-defaults` | Accept all defaults; only the language must still be supplied. |
-| `em-dee list` | Show the full catalog (categories and options). `--json` emits the documented machine-readable shape. |
-| `em-dee show <ref>` | Print one block's markdown to stdout. The resolver accepts three ref forms: `language.<lang>` (e.g. `language.python` → that language's `base.md`), `<lang>.<cat>.<opt>` (e.g. `python.logging.loguru`), and `<cat>.<opt>` (e.g. `infra.docker`). |
-| `em-dee version` | Print the version (human form). |
-| `em-dee version --json` | Print the version as machine-readable JSON. |
-| `em-dee update --check` | Check for a newer release. Exit code `0` = no upgrade action available (up-to-date, or running a `dev` / `dev-<sha>` build that skips the staleness check), `1` = update available, `2` = error. |
+| `em-dee` | Interactive flow on a TTY. |
+| `em-dee generate --language=python --python-logging=loguru` | Non-interactive generation. Flag names use dashes, not dots. |
+| `em-dee generate --use-defaults` | Accept all defaults; only `--language` must still be supplied. |
+| `em-dee list` | Show the full catalog. |
+| `em-dee list --json` | Same, machine-readable. |
+| `em-dee show <ref>` | Print one block's markdown (see ref forms below). |
+| `em-dee version` | Print version, human form. |
+| `em-dee version --json` | Print version as machine-readable JSON. |
+| `em-dee update --check` | Check for a newer release (see exit codes below). |
+
+### `show <ref>` resolver forms
+
+| Form | Example | Resolves to |
+| --- | --- | --- |
+| `language.<lang>` | `language.python` | `python/base.md` |
+| `<lang>.<cat>.<opt>` | `python.logging.loguru` | `python/20-logging/loguru.md` |
+| `<cat>.<opt>` | `infra.docker` | `20-infra/docker.md` |
+
+### `update --check` exit codes
+
+| Exit | Meaning |
+| --- | --- |
+| `0` | Up-to-date, or running a `dev` / `dev-<sha>` build (staleness check skipped). |
+| `1` | Update available. |
+| `2` | Error (network, parse, rate limit, etc.). |
 
 ### `generate` behaviour flags
 
@@ -62,19 +100,26 @@ a small set of flags that control where and how the file is written:
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--out=<path>` | `CLAUDE.md` | Path to write the generated file. |
-| `--force` | `false` | Overwrite an existing file at `--out`. The previous contents are backed up to `<out>.bak.<unix-ts>` in the same directory. Without `--force`, em-dee refuses to overwrite. |
-| `--dry-run` | `false` | Write the rendered output to stdout instead of disk. Skips the existing-file check and the Claude review. |
+| `--force` | `false` | Overwrite an existing file at `--out`. Previous contents are backed up to `<out>.bak.<unix-ts>` in the same directory. Without `--force`, em-dee refuses to overwrite. |
+| `--dry-run` | `false` | Write rendered output to stdout instead of disk. Skips the existing-file check and the Claude review. |
 | `--use-defaults` | `false` | Accept the default option for every category. `--language` must still be supplied (or chosen interactively on a TTY). |
 
 ## Claude review
 
 After writing `CLAUDE.md`, em-dee shells out to `claude -p` to review the
-generated file. This is opt-out via `--no-review`. Use `--review-out=<path>`
-to capture the structured JSON output for programmatic consumption — the
-shape is `{verdict, summary, issues[{severity, location, issue, suggestion}]}`
-with an optional `raw` field on the tier-3 unstructured-fallback path
-(spec §7.2). `--review-timeout=<duration>` overrides the default 60s
-subprocess deadline.
+generated file. This is opt-out via `--no-review`. Use
+`--review-out=<path>` to capture the structured JSON output for
+programmatic consumption — the shape is documented in spec section 7.2:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `verdict` | string | One of `ok`, `warnings`, `problems`. The on-disk artifact may also carry `unstructured` as a tier-3 fallback sentinel (spec section 7.7). |
+| `summary` | string | One-sentence overall assessment. |
+| `issues` | array | Per-issue `{severity, location, issue, suggestion}` objects. May be empty. |
+| `raw` | string (optional) | Present only on the tier-3 unstructured-fallback path. Carries the unparsed text. |
+
+`--review-timeout=<duration>` overrides the default 60s subprocess
+deadline.
 
 ## Further reading
 

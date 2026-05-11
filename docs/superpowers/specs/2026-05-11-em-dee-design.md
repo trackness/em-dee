@@ -935,25 +935,53 @@ The exact catalog is the one place the spec leaves room to iterate
 during implementation. Strawman (subject to revision in the plan, but
 this is what we start with):
 
-| # | Category | Pick | Required | Default | Options |
-|---|---|---|---|---|---|
-| 10 | language | single | yes | — | `go`, `python`, `typescript-node`, `rust` |
-| Within go | 10-framework | single | no | `stdlib-net-http` | `stdlib-net-http`, `gin`, `echo` |
-| Within go | 20-logging | single | no | `slog` | `slog`, `zap` |
-| Within go | 30-testing | single | no | `go-test` | `go-test` |
-| Within python | 10-framework | single | no | `fastapi` | `fastapi`, `django`, `flask` |
-| Within python | 20-logging | single | no | `loguru` | `stdlib`, `loguru`, `structlog` |
-| Within python | 30-testing | single | no | `pytest` | `pytest` |
-| Within python | 40-deps | single | no | `uv` | `uv`, `poetry`, `pip-tools` |
-| Within typescript-node | 10-framework | single | no | `express` | `express`, `fastify`, `hono` |
-| Within typescript-node | 20-logging | single | no | `pino` | `pino`, `winston` |
-| Within typescript-node | 30-testing | single | no | `vitest` | `vitest`, `jest` |
-| Within rust | 10-framework | single | no | `axum` | `axum`, `actix-web` |
-| Within rust | 20-logging | single | no | `tracing` | `tracing`, `log` |
-| Within rust | 30-testing | single | no | `cargo-test` | `cargo-test` |
-| 20 | infra | multi | no | `[docker]` | `docker`, `kubernetes`, `terraform` |
-| 30 | ci | multi | no | `[github-actions]` | `github-actions`, `gitlab-ci` |
-| 40 | tooling | multi | no | `[pre-commit]` | `pre-commit`, `mise`, `taskfile`, `makefile` |
+### 13.1 Top-level categories
+
+| Prefix | Category | Pick | Required | Default | Options |
+| --- | --- | --- | --- | --- | --- |
+| `10-` | `language` | single | yes | — | `go`, `python`, `typescript-node`, `rust` |
+| `20-` | `infra` | multi | no | `[docker]` | `docker`, `kubernetes`, `terraform` |
+| `30-` | `ci` | multi | no | `[github-actions]` | `github-actions`, `gitlab-ci` |
+| `40-` | `tooling` | multi | no | `[pre-commit]` | `pre-commit`, `mise`, `taskfile`, `makefile` |
+
+### 13.2 Per-language nested categories
+
+All language-nested categories are `pick: single`, `required: false`.
+Each has its own `_index.yaml` under
+`internal/registry/templates/10-language/<lang>/<NN-cat>/`.
+
+**Go**
+
+| Prefix | Category | Default | Options |
+| --- | --- | --- | --- |
+| `10-` | `framework` | `stdlib-net-http` | `stdlib-net-http`, `gin`, `echo` |
+| `20-` | `logging` | `slog` | `slog`, `zap` |
+| `30-` | `testing` | `go-test` | `go-test` |
+
+**Python**
+
+| Prefix | Category | Default | Options |
+| --- | --- | --- | --- |
+| `10-` | `framework` | `fastapi` | `fastapi`, `django`, `flask` |
+| `20-` | `logging` | `loguru` | `stdlib`, `loguru`, `structlog` |
+| `30-` | `testing` | `pytest` | `pytest` |
+| `40-` | `deps` | `uv` | `uv`, `poetry`, `pip-tools` |
+
+**TypeScript (Node)**
+
+| Prefix | Category | Default | Options |
+| --- | --- | --- | --- |
+| `10-` | `framework` | `express` | `express`, `fastify`, `hono` |
+| `20-` | `logging` | `pino` | `pino`, `winston` |
+| `30-` | `testing` | `vitest` | `vitest`, `jest` |
+
+**Rust**
+
+| Prefix | Category | Default | Options |
+| --- | --- | --- | --- |
+| `10-` | `framework` | `axum` | `axum`, `actix-web` |
+| `20-` | `logging` | `tracing` | `tracing`, `log` |
+| `30-` | `testing` | `cargo-test` | `cargo-test` |
 
 The block *content* (the actual `.md` text per option) is to be drafted
 during implementation, informed by the user's preferences as the catalog
