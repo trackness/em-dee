@@ -53,9 +53,11 @@ brew install trackness/tap/em-dee
 
 After writing `CLAUDE.md`, em-dee shells out to `claude -p` to review the
 generated file. This is opt-out via `--no-review`. Use `--review-out=<path>`
-to capture the structured JSON output (verdict, findings, suggested edits)
-for programmatic consumption; `--review-timeout=<duration>` overrides the
-default 60s subprocess deadline.
+to capture the structured JSON output for programmatic consumption — the
+shape is `{verdict, summary, issues[{severity, location, issue, suggestion}]}`
+with an optional `raw` field on the tier-3 unstructured-fallback path
+(spec §7.2). `--review-timeout=<duration>` overrides the default 60s
+subprocess deadline.
 
 ## Configuration
 
