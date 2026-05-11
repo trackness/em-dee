@@ -49,9 +49,8 @@ curl -fsSL https://github.com/trackness/em-dee/releases/latest/download/em-dee_l
 Invoke-WebRequest -Uri https://github.com/trackness/em-dee/releases/latest/download/em-dee_windows_amd64.zip -OutFile em-dee.zip; Expand-Archive em-dee.zip
 ```
 
-**Homebrew** (post-tap-setup; see [spec section 12.4](docs/superpowers/specs/2026-05-11-em-dee-design.md)
-— this command is not live until the `trackness/tap` formula is
-published):
+**Homebrew** (post-tap-setup; not live until the `trackness/tap`
+formula is published):
 
 ```sh
 brew install trackness/tap/em-dee
@@ -108,37 +107,31 @@ a small set of flags that control where and how the file is written:
 
 After writing `CLAUDE.md`, em-dee shells out to `claude -p` to review the
 generated file. This is opt-out via `--no-review`. Use
-`--review-out=<path>` to capture the structured JSON output for
-programmatic consumption — the shape is documented in spec section 7.2:
+`--review-out=<path>` to capture the structured JSON output:
 
-| Field     | Type              | Notes                                                                                                                                     |
-|-----------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `verdict` | string            | One of `ok`, `warnings`, `problems`. The on-disk artifact may also carry `unstructured` as a tier-3 fallback sentinel (spec section 7.7). |
-| `summary` | string            | One-sentence overall assessment.                                                                                                          |
-| `issues`  | array             | Per-issue `{severity, location, issue, suggestion}` objects. May be empty.                                                                |
-| `raw`     | string (optional) | Present only on the tier-3 unstructured-fallback path. Carries the unparsed text.                                                         |
+| Field     | Type              | Notes                                                                                                                  |
+|-----------|-------------------|------------------------------------------------------------------------------------------------------------------------|
+| `verdict` | string            | One of `ok`, `warnings`, `problems`. The on-disk artifact may also carry `unstructured` as a tier-3 fallback sentinel. |
+| `summary` | string            | One-sentence overall assessment.                                                                                       |
+| `issues`  | array             | Per-issue `{severity, location, issue, suggestion}` objects. May be empty.                                             |
+| `raw`     | string (optional) | Present only on the tier-3 unstructured-fallback path. Carries the unparsed text.                                      |
 
 `--review-timeout=<duration>` overrides the default 60s subprocess
 deadline.
 
 ## Further reading
 
-- Design spec: [`docs/superpowers/specs/2026-05-11-em-dee-design.md`](docs/superpowers/specs/2026-05-11-em-dee-design.md)
 - Operating contract: [`CLAUDE.md`](CLAUDE.md)
 
 (em-dee v1 has no env-var configuration — `EM_DEE_*` is reserved but
-unread, per spec section 14. All knobs are flags, documented under
-Usage.)
+unread. All knobs are flags, documented under Usage.)
 
 ## Status
 
-v0.1.0 ships with placeholder / TODO content in the catalog — the catalog
-structure is final, but the per-option markdown blocks are stubs pending
-real content drafting. The CLI surface, the catalog structure, the review
-pipeline, and the release/update mechanism are all finalised in v0.1.0;
-only the per-block markdown is TODO. This is intentional per spec section
-13 to ship the working binary against a real release; finalised content
-lands in subsequent releases.
+v0.1.0 ships with placeholder / TODO content in the catalog. The CLI
+surface, the catalog structure, the review pipeline, and the
+release/update mechanism are finalised; only the per-block markdown
+is TODO. Finalised content lands in subsequent releases.
 
 ## License
 
