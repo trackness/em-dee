@@ -47,7 +47,6 @@ func load(fsys fs.FS, root string) (*Registry, error) {
 		return nil, err
 	}
 	reg.fsys = fsys
-	reg.root = root
 	return reg, nil
 }
 

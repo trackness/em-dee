@@ -48,19 +48,18 @@ type Category struct {
 }
 
 // Registry is the root view of the templates filesystem in render
-// order (`10-language`, `20-infra`, …). Construct one via Load.
-//
-// FS and Root retain the source filesystem and the path inside it
-// (e.g. `"templates"`) so callers — notably `internal/render` and
-// `em-dee show` — can read individual block (`.md`) files via
-// OptionBlock without re-loading the manifest. We keep both fields
-// non-exported helpers on Registry rather than re-plumbing the fs.FS
-// through every call site; the boundary stays in the registry package.
+// order (`10-language`, `20-infra`, …). Construct one via Load or
+// LoadFS — these set the unexported fsys reference that OptionBlock
+// reads from. The fsys field retains the source filesystem so
+// callers — notably `internal/render` and `em-dee show` — can read
+// individual block (`.md`) files via OptionBlock without re-loading
+// the manifest. We keep fsys non-exported rather than re-plumbing
+// the fs.FS through every call site; the boundary stays in the
+// registry package.
 type Registry struct {
 	Categories []*Category
 
 	fsys fs.FS
-	root string
 }
 
 // Value is the tri-state per-category selection cell used inside
