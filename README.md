@@ -2,9 +2,10 @@
 
 em-dee is a Go CLI that generates `CLAUDE.md` files for new projects from a
 curated, embedded catalog of opinionated markdown blocks. Pick a language and
-a small number of associated choices (framework, logging, testing) plus
-cross-cutting concerns (infra, CI, tooling); em-dee concatenates the matching
-blocks into a `CLAUDE.md` and, by default, asks Claude to review the result.
+program type (CLI, server, library, …), then a small number of associated
+choices (framework, logging, …) plus cross-cutting concerns (infra, CI,
+tooling); em-dee concatenates the matching blocks into a `CLAUDE.md` and,
+by default, asks Claude to review the result.
 
 ## Install
 
@@ -65,31 +66,37 @@ brew install trackness/tap/em-dee
 ## Usage
 
 `em-dee` with no subcommand is the interactive entrypoint; on a TTY it
-prompts for language and each category. In non-interactive contexts
-(CI, pipes, `Makefile` recipes), pass `--language=<id>` and any other
-category flags — em-dee errors out instead of half-prompting.
+prompts for language, program type (where the language has type-conditional
+content), and per-category picks. In non-interactive contexts (CI, pipes,
+`Makefile` recipes), pass `--language=<id> --use-defaults` — em-dee accepts
+the registry defaults for every other category and errors out instead of
+half-prompting. `--language=<id>` is the only per-category flag; everything
+else is interactive or `--use-defaults`.
 
-| Command                                                     | Description                                                    |
-|-------------------------------------------------------------|----------------------------------------------------------------|
-| `em-dee`                                                    | Interactive flow on a TTY.                                     |
-| `em-dee generate --language=python --python-logging=loguru` | Non-interactive generation. Flag names use dashes, not dots.   |
-| `em-dee generate --use-defaults`                            | Accept all defaults; only `--language` must still be supplied. |
-| `em-dee list`                                               | Show the full catalog.                                         |
-| `em-dee list --json`                                        | Same, machine-readable.                                        |
-| `em-dee show <ref>`                                         | Print one block's markdown (see ref forms below).              |
-| `em-dee version`                                            | Print version, human form.                                     |
-| `em-dee version --json`                                     | Print version as machine-readable JSON.                        |
-| `em-dee update --check`                                     | Check for a newer release (see exit codes below).              |
+| Command                                                  | Description                                                                       |
+|----------------------------------------------------------|-----------------------------------------------------------------------------------|
+| `em-dee`                                                 | Interactive flow on a TTY.                                                        |
+| `em-dee generate --language=python --use-defaults`       | Non-interactive generation: language pick supplied, every other category default. |
+| `em-dee list`                                            | Show the full catalog.                                                            |
+| `em-dee list --json`                                     | Same, machine-readable.                                                           |
+| `em-dee show <ref>`                                      | Print one block's markdown (see ref forms below).                                 |
+| `em-dee version`                                         | Print version, human form.                                                        |
+| `em-dee version --json`                                  | Print version as machine-readable JSON.                                           |
+| `em-dee update --check`                                  | Check for a newer release (see exit codes below).                                 |
 
 ### `show <ref>` resolver forms
 
-Resolved paths are relative to `internal/registry/templates/`.
+Resolved paths are relative to `internal/registry/templates/`. Container
+categories are elided from the dotted ref (per CONTENT-STYLE.md §2.3) —
+only the chosen container option's id appears in the ref.
 
-| Form                 | Example                 | Resolves to                               |
-|----------------------|-------------------------|-------------------------------------------|
-| `language.<lang>`    | `language.python`       | `10-language/python/base.md`              |
-| `<lang>.<cat>.<opt>` | `python.logging.loguru` | `10-language/python/20-logging/loguru.md` |
-| `<cat>.<opt>`        | `infra.docker`          | `20-infra/docker.md`                      |
+| Form                                       | Example                       | Resolves to                                                              |
+|--------------------------------------------|-------------------------------|--------------------------------------------------------------------------|
+| `language.<lang>`                          | `language.python`             | `10-language/python/base.md`                                             |
+| `<lang>.<cat>.<opt>`                       | `python.logging.loguru`       | `10-language/python/20-logging/loguru.md`                                |
+| `<lang>.<type>.<cat>.<opt>`                | `python.cli.framework.typer`  | `10-language/python/10-type/cli/10-framework/typer.md`                   |
+| `<lang>.<type>`                            | `python.cli`                  | `10-language/python/10-type/cli/base.md`                                 |
+| `<cat>.<opt>`                              | `infra.docker`                | `20-infra/docker.md`                                                     |
 
 ### `update --check` exit codes
 
