@@ -1,0 +1,13 @@
+display_name: "Program type"
+pick: single
+required: false
+default: cli
+options:
+  - id: cli
+    display_name: "CLI"
+    description: "Command-line program"
+    file: cli/base.md
+  - id: library
+    display_name: "Library"
+    description: "Importable library"
+    file: library/base.md

@@ -3,9 +3,14 @@ package registry
 // ApplyDefaults returns a new Picks with each unset category filled
 // from the registry's `default`. The contract:
 //
-//   - nil pointer (unset) → fill with default if one exists.
-//   - non-nil pointer to empty value (explicit-none) → leave alone.
-//   - non-nil pointer to non-empty value (chosen) → leave alone.
+//   - nil pointer (unset, or map-absent) → fill with default if one
+//     exists.
+//   - any non-nil pointer (the user expressed a value, even an empty
+//     one) → leave alone. The "explicit empty defeats the default"
+//     state is no longer reachable through the public API (Dispatch 1
+//     collapse), but defensively leaving non-nil values untouched
+//     keeps the function shape simple and avoids surprising any caller
+//     that hand-constructs Picks via NewSingle("")/NewMulti(nil).
 //
 // The function is pure: it deep-copies the input map so the caller's
 // Picks is unchanged. Language-nested categories are only considered
@@ -17,53 +22,62 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 		out.Values[k] = cloneValue(v)
 	}
 
-	// Resolve which language has been chosen, if any. We read from
-	// the input picks (not `out`) — semantically identical in v1
-	// (the language category has no default, so the input's language
-	// value is what the output sees too). Forward-compat hazard: if a
-	// language default is ever introduced, reading from `picks` would
-	// miss the just-filled default and a downstream consumer of the
-	// language subtree wouldn't see it here. Re-read from `out` after
-	// `fillIfUnset` if that changes.
-	var chosenLang string
-	if v, ok := picks.Values[LanguageCategoryID]; ok && v != nil && v.Single != nil {
-		chosenLang = *v.Single
-	}
-
 	for _, cat := range reg.Categories {
-		switch cat.ID {
-		case LanguageCategoryID:
-			fillIfUnset(out, LanguageCategoryID, cat)
-		default:
-			fillIfUnset(out, cat.ID, cat)
-		}
-
-		// Language subtree: only fill the chosen language's
-		// subcategories. If language is unset, skip the entire
-		// subtree — defaulting framework / logging without a
-		// language to anchor them would be meaningless.
-		if cat.ID == LanguageCategoryID && chosenLang != "" {
-			for _, sub := range cat.Subcategories[chosenLang] {
-				key := chosenLang + "." + sub.ID
-				fillIfUnset(out, key, sub)
-			}
-		}
+		applyDefaultsTree(out, cat, "")
 	}
 
 	return out
 }
 
+// applyDefaultsTree fills the default for `cat` if it's unset, then
+// recurses into container subtrees: a container's chosen option
+// determines which sub-tree's defaults to apply. Containers with no
+// chosen option skip recursion (defaulting blocks anchored under an
+// un-chosen container scope would be meaningless — there is no scope).
+//
+// `prefix` is the dotted Picks-key prefix in effect; an empty prefix
+// means we're at the top level. When descending into a container's
+// chosen option, the prefix gains the chosen option's id (eliding the
+// container's own id per CONTENT-STYLE.md §2.3).
+func applyDefaultsTree(out Picks, cat *Category, prefix string) {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	fillIfUnset(out, key, cat)
+	if !cat.IsContainer {
+		return
+	}
+
+	// Identify the chosen option (after defaults have been applied for
+	// the container itself). A container with no chosen option — and
+	// no default to fill — has an empty subtree's worth of defaults
+	// to apply, so we just return.
+	v, ok := out.Values[key]
+	if !ok || v == nil || v.Single == nil || *v.Single == "" {
+		return
+	}
+	chosen := *v.Single
+
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		applyDefaultsTree(out, sub, childPrefix)
+	}
+}
+
 // fillIfUnset writes the registry default into `out[key]` only if
 // `out[key]` is "unset". "Unset" means **nil pointer** — which covers
-// both map-absent AND map-present-with-nil-value. Explicit-none values
-// (non-nil pointer to an empty value) are left alone. The
-// map-present-nil case can arise from generic merge helpers or from
-// cloneValue of a nil entry; treating it the same as map-absent keeps
-// the contract unambiguous for downstream render/CLI consumers.
+// both map-absent AND map-present-with-nil-value. Any non-nil *Value
+// is left alone, on the principle that the caller spoke for itself.
+// The map-present-nil case can arise from generic merge helpers or
+// from cloneValue of a nil entry; treating it the same as map-absent
+// keeps the contract unambiguous for downstream render/CLI consumers.
 func fillIfUnset(out Picks, key string, cat *Category) {
 	if v, ok := out.Values[key]; ok && v != nil {
-		// Already present and non-nil (chosen or explicit-none) —
-		// leave alone.
+		// Already present and non-nil — leave alone.
 		return
 	}
 	switch cat.Pick {

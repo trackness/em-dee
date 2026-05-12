@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -9,22 +10,49 @@ import (
 	"github.com/trackness/em-dee/internal/registry"
 )
 
+// nnPrefixPattern matches the `NN-` folder-prefix that parseIndex
+// strips when generating a category id. Detected in `show` error
+// messages so a user who paste-confuses the on-disk segment for the
+// canonical dotted id (e.g. `python.50-linter.ruff` instead of
+// `python.linter.ruff`) gets a pointed suggestion rather than a
+// generic "not found".
+var nnPrefixPattern = regexp.MustCompile(`^[0-9]{2}-`)
+
+// suggestStripped returns the NN-prefix-stripped form of seg if it
+// carries one (e.g. "50-linter" → "linter"); empty string otherwise.
+// The caller uses an empty return as "nothing useful to suggest".
+func suggestStripped(seg string) string {
+	if !nnPrefixPattern.MatchString(seg) {
+		return ""
+	}
+	return nnPrefixPattern.ReplaceAllString(seg, "")
+}
+
 // newShowCmd builds `em-dee show <ref>` for the dotted-ref grammar.
 //
 // Reference forms (resolved left-to-right against the registry, not by
 // string-manipulating filesystem paths):
 //
-//   - `language.<lang>` → reads the language option's File (the
-//     `<lang>/base.md` block).
+//   - `<container>.<opt>` → a container category's option block. The
+//     canonical example is `language.<lang>`, which reads the
+//     `<lang>/base.md` block.
 //   - `<lang>.<cat>.<opt>` → language subcategory option block.
+//   - `<lang>.<type>.<cat>.<opt>` (arbitrary depth) → resolves through
+//     a chain of container options, eliding container category ids
+//     per CONTENT-STYLE.md §2.3. For example `python.cli.framework.typer`
+//     traverses python → 10-type (container, opt=cli) → 10-framework
+//     (leaf, opt=typer) once that subtree exists.
 //   - `<cat>.<opt>` → top-level category option block.
 //
-// Disambiguation rule (per plan Task 3.3): if the first segment is a
-// known language id, treat the ref as the language-nested form;
-// otherwise treat the first segment as a top-level category id. v1's
-// catalog has no collision between language ids (`go`, `python`,
-// `typescript-node`, `rust`) and top-level category ids (`infra`,
-// `ci`, `tooling`), so this rule is unambiguous in practice.
+// Disambiguation rule (per plan Task 3.3): the resolver walks the
+// dotted segments left-to-right. At each step it matches the next
+// segment against either a *category id* in the current scope (leaf
+// or container) or, when the current category is a container, an
+// *option id* (which descends into the container's subtree, eliding
+// the container's own id). The validator guarantees ids are
+// non-colliding (option ids unique within a category, language option
+// ids non-colliding with top-level category ids), so the walk is
+// unambiguous.
 func newShowCmd(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show <ref>",
@@ -52,65 +80,163 @@ func newShowCmd(opts Options) *cobra.Command {
 // and returns the raw bytes of the resolved option's `.md` block.
 // Errors include the full input ref so the user sees what failed.
 //
-// Category/option lookup uses registry.Registry.FindCategory and
-// registry.Category.HasOption — the helpers are shared with the
-// resolver inside the registry package, so the show form and the
-// flag-derived selection form can't drift.
+// Algorithm: walk dotted segments left-to-right. The first segment is
+// a category id within the top-level scope; subsequent segments
+// alternate "option id of the current category" and "category id
+// within the chosen subtree". When the current category is a
+// container, choosing an option means descending into that option's
+// subtree (the container's own id is elided per CONTENT-STYLE.md
+// §2.3). The terminus is always an option id of a leaf category,
+// whose `.md` block is returned.
+//
+// A two-segment ref where the first segment is a container — most
+// commonly `language.<lang>` — resolves to the container option's
+// scope base.md (e.g. `<lang>/base.md`). This is the "show me the
+// scope-level discipline block" form.
 func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 	segs := strings.Split(ref, ".")
 	if len(segs) < 2 {
 		return nil, fmt.Errorf("show %s: reference must have at least two dotted segments (e.g. language.python or infra.docker)", ref)
 	}
 
-	// Form 1: `language.<lang>` — first segment is the literal word
-	// "language" and the registry has a category with id "language".
-	if segs[0] == registry.LanguageCategoryID && len(segs) == 2 {
-		langCat := reg.FindCategory(registry.LanguageCategoryID)
-		if langCat == nil {
-			return nil, fmt.Errorf("show %s: no `language` category in registry", ref)
-		}
-		if !langCat.HasOption(segs[1]) {
-			return nil, fmt.Errorf("show %s: language %q not found", ref, segs[1])
-		}
-		return reg.OptionBlock(langCat, segs[1])
+	// First-segment disambiguation: the segment is either a top-level
+	// category id OR an option of a top-level container category whose
+	// own id has been elided (per CONTENT-STYLE.md §2.3 the container
+	// is silent in the namespace; only the chosen option appears).
+	// The most common elision is the `language` container: the user
+	// writes `python.logging.loguru` rather than `language.python.logging.loguru`.
+	//
+	// Category-id match wins when both are possible — the validator
+	// guarantees there's no collision (a language option id may not
+	// equal a top-level category id), so the "both possible" case is
+	// excluded at load time.
+	if cat := reg.FindCategory(segs[0]); cat != nil {
+		return walkShowRef(reg, cat, segs[1:], ref)
 	}
 
-	// Form 2: first segment is a known language id. Walk
-	// language.Subcategories[<lang>] for the second-segment category,
-	// then resolve the third-segment option.
-	langCat := reg.FindCategory(registry.LanguageCategoryID)
-	if langCat != nil && langCat.HasOption(segs[0]) {
-		if len(segs) != 3 {
-			return nil, fmt.Errorf("show %s: language-nested reference must be <lang>.<category>.<option>", ref)
+	// Try every top-level container in declaration order. The first
+	// container whose options include segs[0] owns the ref.
+	for _, cat := range reg.Categories {
+		if !cat.IsContainer {
+			continue
 		}
-		subs := langCat.Subcategories[segs[0]]
-		var sub *registry.Category
-		for _, s := range subs {
-			if s.ID == segs[1] {
-				sub = s
-				break
-			}
+		if !cat.HasOption(segs[0]) {
+			continue
 		}
-		if sub == nil {
-			return nil, fmt.Errorf("show %s: language %q has no sub-category %q", ref, segs[0], segs[1])
-		}
-		if !sub.HasOption(segs[2]) {
-			return nil, fmt.Errorf("show %s: option %q not found in %s.%s", ref, segs[2], segs[0], segs[1])
-		}
-		return reg.OptionBlock(sub, segs[2])
+		// Treat segs[0] as the chosen option, then descend.
+		return walkShowRefViaContainer(reg, cat, segs, ref)
 	}
 
-	// Form 3: top-level `<cat>.<opt>` (exactly two segments).
-	if len(segs) == 2 {
-		cat := reg.FindCategory(segs[0])
-		if cat == nil {
-			return nil, fmt.Errorf("show %s: no category %q in registry", ref, segs[0])
+	if stripped := suggestStripped(segs[0]); stripped != "" {
+		return nil, fmt.Errorf("show %s: no category %q in registry (did you mean the NN-prefix-stripped form %q? em-dee refs use category ids, not folder names)", ref, segs[0], stripped)
+	}
+	return nil, fmt.Errorf("show %s: no category %q in registry", ref, segs[0])
+}
+
+// walkShowRefViaContainer handles the elided-container shape: the
+// caller has identified `cat` as a container whose option is
+// `segs[0]`. The same elision shape may appear again at any nested
+// depth (a type-container's option id substituted for the container's
+// own id), so descent into the option's subtree calls
+// walkShowRefInScope rather than walkShowRef directly.
+//
+// Two outcomes:
+//
+//   - One segment total → return the option's scope base.md (same as
+//     `<container>.<opt>`); this case is unusual because callers can
+//     just write `language.python` instead.
+//   - Two or more segments → descend into the option's subtree
+//     (segs[1:]) and resolve the remainder against that scope.
+func walkShowRefViaContainer(reg *registry.Registry, cat *registry.Category, segs []string, ref string) ([]byte, error) {
+	optID := segs[0]
+	if len(segs) == 1 {
+		return reg.OptionBlock(cat, optID)
+	}
+	return walkShowRefInScope(reg, cat.Subcategories[optID], segs[1:], ref)
+}
+
+// walkShowRefInScope resolves the remaining dotted segments against a
+// list of categories in the current scope. Disambiguation mirrors the
+// top-level rule (resolveShowRef): the next segment is first matched
+// against a category id; if no such category exists, it is treated as
+// the elided-container option id of any container category in this
+// scope.
+//
+// Returns the resolved block bytes or an error naming the segment
+// that failed to resolve.
+func walkShowRefInScope(reg *registry.Registry, scope []*registry.Category, segs []string, ref string) ([]byte, error) {
+	if len(segs) == 0 {
+		return nil, fmt.Errorf("show %s: reference is incomplete (no segment to resolve in scope)", ref)
+	}
+	// Category-id match wins.
+	for _, cat := range scope {
+		if cat.ID == segs[0] {
+			return walkShowRef(reg, cat, segs[1:], ref)
 		}
-		if !cat.HasOption(segs[1]) {
-			return nil, fmt.Errorf("show %s: option %q not found in category %q", ref, segs[1], segs[0])
+	}
+	// Elided-container fallback: segs[0] is an option of some
+	// container category at this scope.
+	for _, cat := range scope {
+		if !cat.IsContainer {
+			continue
 		}
-		return reg.OptionBlock(cat, segs[1])
+		if cat.HasOption(segs[0]) {
+			return walkShowRefViaContainer(reg, cat, segs, ref)
+		}
+	}
+	if stripped := suggestStripped(segs[0]); stripped != "" {
+		return nil, fmt.Errorf("show %s: no category or container option named %q in scope (did you mean %q? em-dee refs strip the NN- folder prefix)", ref, segs[0], stripped)
+	}
+	return nil, fmt.Errorf("show %s: no category or container option named %q in scope", ref, segs[0])
+}
+
+// walkShowRef consumes the remaining segments against a current
+// category. The recursion has two terminating shapes:
+//
+//   - One segment left, current category is a leaf → resolve as that
+//     category's option id, return its block.
+//   - One segment left, current category is a container → resolve as
+//     a container option id (the option's `file:` must point at a
+//     scope-base block; otherwise the ref is incomplete).
+//
+// And one descending shape:
+//
+//   - Two or more segments left, current category is a container →
+//     match the next segment as a container option id, then descend
+//     into that option's subtree. The following segment names a
+//     category within the subtree; that's the new current category
+//     and the recursion continues.
+func walkShowRef(reg *registry.Registry, cat *registry.Category, remaining []string, ref string) ([]byte, error) {
+	if len(remaining) == 0 {
+		return nil, fmt.Errorf("show %s: reference is incomplete (no option after category %q)", ref, cat.ID)
 	}
 
-	return nil, fmt.Errorf("show %s: reference does not match any known form (language.<lang>, <lang>.<cat>.<opt>, or <cat>.<opt>)", ref)
+	if !cat.IsContainer {
+		// Leaf: exactly one segment must remain, naming the option.
+		if len(remaining) != 1 {
+			return nil, fmt.Errorf("show %s: leaf category %q expects exactly one option segment, got %d extra", ref, cat.ID, len(remaining)-1)
+		}
+		optID := remaining[0]
+		if !cat.HasOption(optID) {
+			return nil, fmt.Errorf("show %s: option %q not found in category %q", ref, optID, cat.ID)
+		}
+		return reg.OptionBlock(cat, optID)
+	}
+
+	// Container: the next segment is an option id.
+	optID := remaining[0]
+	if !cat.HasOption(optID) {
+		return nil, fmt.Errorf("show %s: option %q not found in container category %q", ref, optID, cat.ID)
+	}
+
+	// One segment left → the user wants the option's scope-base block
+	// (e.g. `language.python` → `python/base.md`).
+	if len(remaining) == 1 {
+		return reg.OptionBlock(cat, optID)
+	}
+
+	// More segments → descend into the chosen option's subtree. Use
+	// the in-scope walker so the same category-vs-elided-container
+	// disambiguation applies recursively.
+	return walkShowRefInScope(reg, cat.Subcategories[optID], remaining[1:], ref)
 }

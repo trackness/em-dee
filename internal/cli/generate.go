@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/trackness/em-dee/internal/registry"
@@ -22,76 +21,51 @@ import (
 	"github.com/trackness/em-dee/internal/tui"
 )
 
-// generateFlags holds the wired-up state for one invocation. The
-// per-category flags live in a map keyed by the registry's selection
-// key — top-level category id (`infra`) or `<lang-id>.<sub-id>`
-// (`python.framework`). This shape feeds directly into
-// registry.ResolveSelection.
-//
-// Tri-state handling: pflag's `Changed()` predicate lets us tell
-// "user passed --foo=" (changed, empty value) apart from "user didn't
-// pass --foo at all" (not changed). The non-interactive flag→Picks
-// builder consults Changed() to seed the map only for flags the user
-// actually mentioned.
-//
-// Flag-name format tradeoff (per plan Task 3.4): pflag does not
-// support dots in long flag names because dots collide with its
-// shorthand-grouping. We use dashes for namespaced flags (e.g.
-// `--python-framework` rather than `--python.framework`), but the
-// resolver still consumes dotted keys. We never parse the flag name
-// back into a selection key — both halves are known at registration
-// time, so we record the mapping then and consult it at consumption
-// time. This makes hyphenated language ids (e.g. `typescript-node`)
-// round-trip by construction. See selectionKey below.
+// generateFlags holds the wired-up state for one invocation. Dispatch 1
+// of the schema-restructure work removed the per-category flag layer:
+// the only surface left is `--language=<id>` (the single exception that
+// skips the interactive language prompt) plus the behaviour flags.
+// Form 2's per-category selection moves entirely into the interactive
+// flow in Dispatch 3.
 type generateFlags struct {
 	out         string
 	force       bool
 	dryRun      bool
 	useDefaults bool
-	// Review-related flags. `noReview` flips the default `--review=true`
-	// off. `reviewOut` is an optional path the parsed JSON (or the
-	// unstructured sentinel shape) is written to. `reviewTimeout`
-	// overrides the default subprocess deadline; empty means "use the
-	// default".
+	// Review-related flags. `review` defaults to true; `noReview`
+	// defaults to false. Either `--no-review` OR `--review=false`
+	// skips the review (both names are exposed so `--help` is
+	// self-documenting and either convention works). `reviewOut` is
+	// an optional path the parsed JSON (or the unstructured sentinel
+	// shape) is written to. `reviewTimeout` overrides the default
+	// subprocess deadline; empty means "use the default".
 	noReview      bool
 	review        bool
 	reviewOut     string
 	reviewTimeout string
 
-	// values holds the raw string captured by each per-category flag.
-	// The map key is the flag's *registered name* (with dashes, see
-	// the flag-name tradeoff above).
-	values map[string]*string
-
-	// selectionKey maps a registered flag name (e.g. `python-framework`
-	// or `typescript-node-logging`) to the dotted selection key the
-	// resolver consumes (e.g. `python.framework`,
-	// `typescript-node.logging`). Built at flag-registration time in
-	// registerCategoryFlags where both halves are already known —
-	// avoids the parse-the-name-back ambiguity that breaks hyphenated
-	// language ids when the first dash isn't the namespace separator.
-	selectionKey map[string]string
-
-	// regLoadErr captures a registry-load failure from
-	// registerGenerateFlagsAndRun. RunE returns this as its first act
-	// so the user gets a clear error instead of a half-populated flag
-	// set. Nil on the happy path. `--help` still works (cobra prints
-	// the registered flags + the warning we splice into cmd.Long).
-	regLoadErr error
+	// language is the one surviving category-level flag. It is the
+	// non-interactive entry point that skips form 1 of the interactive
+	// flow when the language is known up front. Empty string means
+	// "not supplied"; we use cobra's Changed() predicate to tell
+	// "--language=python" (set) from "no --language" (unset) and
+	// "--language=" (explicit empty) from both.
+	language string
 }
 
-// newGenerateCmd builds `em-dee generate`. The flag set is built
-// dynamically from the registry so adding a category or language only
-// touches the templates filesystem — there are no per-category Go
-// edits required to expose a new flag.
+// newGenerateCmd builds `em-dee generate`. The flag set is now static —
+// the per-category flag wiring (one flag per registry category) was
+// removed in Dispatch 1; adding or renaming a category no longer needs
+// a Go edit either way, since selection now flows entirely through the
+// interactive form.
 func newGenerateCmd(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate",
-		Short: "Generate CLAUDE.md from flag-supplied picks",
+		Short: "Generate CLAUDE.md from interactive picks (or --language for the non-interactive happy path)",
 		Args:  cobra.NoArgs,
-		// Don't print usage on user-level errors (unknown option ids,
-		// missing required category). Usage noise drowns the actual
-		// error in scripted use.
+		// Don't print usage on user-level errors (missing required
+		// category, etc.). Usage noise drowns the actual error in
+		// scripted use.
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
@@ -101,10 +75,10 @@ func newGenerateCmd(opts Options) *cobra.Command {
 
 // registerGenerateFlagsAndRun wires the generate flag set onto an
 // arbitrary *cobra.Command and installs the pipeline as its RunE. It
-// is the seam Task 3.5 uses to make the root command behave as
-// `generate` when invoked with no subcommand: the root gets the same
-// flags and the same RunE, so the two entrypoints are byte-equivalent
-// (the integration test `TestRoot_DefaultsToGenerate` locks this in).
+// is the seam that makes the root command behave as `generate` when
+// invoked with no subcommand: the root gets the same flags and the
+// same RunE, so the two entrypoints are byte-equivalent (the
+// integration test `TestRoot_DefaultsToGenerate` locks this in).
 //
 // The flag-state struct lives in this closure so each command gets
 // its own state — sharing one across root and generate would mean a
@@ -112,58 +86,32 @@ func newGenerateCmd(opts Options) *cobra.Command {
 // which cobra's child-vs-root flag resolution makes hard to reason
 // about. One generateFlags per command, period.
 func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
-	flags := &generateFlags{
-		values:       map[string]*string{},
-		selectionKey: map[string]string{},
-	}
+	flags := &generateFlags{}
 
 	// Behaviour flags.
 	cmd.Flags().StringVar(&flags.out, "out", "CLAUDE.md", "path to write CLAUDE.md")
 	cmd.Flags().BoolVar(&flags.force, "force", false, "overwrite an existing file (backed up to CLAUDE.md.bak.<unix-ts>)")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "write to stdout instead of disk; skips existing-file check")
-	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept defaults for every category except --language (which must still be supplied; the interactive language prompt lands in Phase 4)")
+	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept registry defaults for every category except --language (which must still be supplied non-interactively)")
 
-	// Review flags. `--review` defaults to true; users pass `--no-review`
-	// to skip. cobra synthesises `--no-review` from the `--review`
-	// BoolVar via the "--no-<name>" convention, but we expose both
-	// names explicitly so `--help` lists them.
-	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing")
-	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (overrides --review)")
+	// Review flags. `--review` defaults to true; `--no-review` is
+	// the explicit-off convention. Both are bound and both are read:
+	// `--review=false` and `--no-review` both skip the review (see
+	// the review-decision check in finishGenerate). Both names are
+	// registered so `--help` lists them and scripts can use whichever
+	// idiom they prefer.
+	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing (pass --review=false or --no-review to skip)")
+	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (same effect as --review=false)")
 	cmd.Flags().StringVar(&flags.reviewOut, "review-out", "", "write the parsed review JSON to this path")
 	cmd.Flags().StringVar(&flags.reviewTimeout, "review-timeout", "", "override the review subprocess deadline (Go duration, default 60s)")
 
-	// Per-category flags, derived from the registry. We resolve the
-	// registry once at command-construction time. If Load() fails
-	// (production embedded FS broken, schema drift, etc.), record the
-	// error on `flags.regLoadErr` so RunE can surface it as its first
-	// act — silently half-populating the flag set at `--help` time
-	// would leave the user staring at a flag list missing
-	// `--language` with no diagnostic, which is worse than a clear
-	// failure.
-	//
-	// `--help` itself still works (cobra prints whatever flags were
-	// registered) and we splice a one-liner into cmd.Long so the user
-	// can tell the catalog failed to load even when they never reach
-	// RunE.
-	if reg, err := resolveRegistry(opts); err == nil {
-		registerCategoryFlags(cmd.Flags(), reg, flags)
-	} else {
-		flags.regLoadErr = err
-		warning := fmt.Sprintf("\n\nWARNING: failed to load embedded registry; per-category flags are unavailable. Underlying error: %v", err)
-		if cmd.Long != "" {
-			cmd.Long += warning
-		} else {
-			cmd.Long = cmd.Short + warning
-		}
-	}
+	// --language is the one surviving category-level flag. It skips
+	// form 1 of the interactive flow when the language is known. All
+	// other category picks come from the interactive form in Dispatch
+	// 3 (or registry defaults under --use-defaults).
+	cmd.Flags().StringVar(&flags.language, "language", "", "language id (e.g. python, go); skips the interactive language prompt")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		// Surface a registry-load failure recorded at construction
-		// time before doing any other work — the rest of the pipeline
-		// assumes a populated category-flag set.
-		if flags.regLoadErr != nil {
-			return fmt.Errorf("load registry: %w", flags.regLoadErr)
-		}
 		reg, err := resolveRegistry(opts)
 		if err != nil {
 			return err
@@ -172,80 +120,21 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	}
 }
 
-// registerCategoryFlags walks the registry and registers one
-// StringVar per category (top-level and language-nested). The flag
-// names use dashes throughout per the flag-name format tradeoff.
-//
-// Each flag's bound pointer is stored in flags.values keyed by the
-// flag name. flags.selectionKey records the parallel mapping from
-// flag name to the dotted selection-key the resolver consumes —
-// recorded at registration time where both halves are still
-// independently known, so hyphenated language ids (e.g.
-// `typescript-node`) round-trip correctly.
-func registerCategoryFlags(fs *pflag.FlagSet, reg *registry.Registry, flags *generateFlags) {
-	for _, cat := range reg.Categories {
-		flagName := cat.ID
-		v := new(string)
-		flags.values[flagName] = v
-		flags.selectionKey[flagName] = cat.ID
-		fs.StringVar(v, flagName, "", flagUsage(cat))
-
-		// Language gets its sub-categories registered with the
-		// `<lang>-<sub>` form, one per option in the language category.
-		if cat.ID == registry.LanguageCategoryID {
-			for _, opt := range cat.Options {
-				subs := cat.Subcategories[opt.ID]
-				for _, sub := range subs {
-					subFlagName := opt.ID + "-" + sub.ID
-					sv := new(string)
-					flags.values[subFlagName] = sv
-					flags.selectionKey[subFlagName] = opt.ID + "." + sub.ID
-					fs.StringVar(sv, subFlagName, "", flagUsage(sub))
-				}
-			}
-		}
-	}
-}
-
-// flagUsage builds a short help string for a category flag. Lists the
-// available option ids so `--help` is self-documenting.
-func flagUsage(cat *registry.Category) string {
-	ids := make([]string, 0, len(cat.Options))
-	for _, opt := range cat.Options {
-		ids = append(ids, opt.ID)
-	}
-	def := ""
-	switch cat.Pick {
-	case registry.PickSingle:
-		if cat.DefaultSingle != "" {
-			def = fmt.Sprintf(" [default %s]", cat.DefaultSingle)
-		}
-	case registry.PickMulti:
-		if len(cat.DefaultMulti) > 0 {
-			def = fmt.Sprintf(" [default %s]", strings.Join(cat.DefaultMulti, ","))
-		}
-	}
-	return fmt.Sprintf("%s (%s)%s: %s",
-		cat.DisplayName, cat.Pick, def, strings.Join(ids, "|"))
-}
-
 // runGenerate is the actual pipeline. Separating it from the cobra
 // closure keeps RunE small and lets tests poke individual stages
 // later if needed. `opts` flows through so the optional review-runner
 // injection (Options.reviewRunner) reaches finishGenerate.
 func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlags, opts Options) error {
-	// Build the selection map from flags that the user actually set
-	// (Changed()==true). This is the tri-state seam: an unchanged
-	// flag is "unset" (omitted from the map); a changed flag with
-	// any value (including empty) becomes an entry.
+	// Build the initial selection map from --language only — the per-
+	// category flags are gone. We use cobra's Changed() predicate so
+	// "no --language" (unset) and "--language=" (explicit empty) are
+	// distinguishable, since the latter is still meaningful: it lets
+	// the user request a clear "language is required" error in
+	// scripted mode rather than the interactive prompt.
 	selection := map[string]any{}
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		key, ok := flags.selectionKey[f.Name]
-		if !ok {
-			return // behaviour flag, not a category flag
-		}
-		selection[key] = f.Value.String()
-	})
+	if cmd.Flags().Changed("language") {
+		selection[registry.LanguageCategoryID] = flags.language
+	}
 
 	// Interactive dispatch. We enter interactive mode when --language is
 	// unset AND stdin/stdout are TTYs. --use-defaults in a TTY context
@@ -283,7 +172,8 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	}
 
 	// Resolve flag map → Picks. ResolveSelection enforces option-id
-	// validity and tri-state required-empty rejection.
+	// validity and required-empty rejection (`--language=` on the
+	// required language category is still a hard error).
 	picks, err := registry.ResolveSelection(reg, selection)
 	if err != nil {
 		return err
@@ -295,80 +185,203 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	return finishGenerate(cmd, reg, picks, flags, opts)
 }
 
-// runInteractive drives the two-phase huh flow: form 1 resolves the
-// language, ApplyDefaults seeds form 2's bindings, form 2 collects the
-// rest plus a confirm group. Returns the final Picks or an error
-// (notably tui.ErrCancelled on user abort or No-on-confirm).
+// runInteractive drives the multi-phase huh flow under Dispatch 3's
+// three-level-capable schema:
 //
-// useDefaults=true skips form 2 entirely: form 1 still runs (the
-// language category has no default), then ApplyDefaults fills in the
-// rest. This matches the "prompt only for language" contract.
+//  1. RunLanguageForm — always runs (language category has no default).
+//  2. RunTypeForm — runs iff the chosen language has a container
+//     sub-category (e.g. `python/10-type/`). Returns "" when no
+//     container exists; the production catalog hits that path today.
+//  3. ApplyDefaults — seeds the rest from registry defaults.
+//  4. RunScopeForm — runs unless --use-defaults short-circuits.
 //
-// UX tradeoff (PR #5 review L2): the useDefaults=true path commits the
-// file immediately after the language pick — no confirm group, no
-// preview of what's about to be written. This is intentional ("prompt
-// only for language"); the safety net is the existing-file rule, which
-// still rejects a write over an existing CLAUDE.md without --force. If
-// users report the no-preview UX as sharp in practice, the v2 move is
-// to surface the render-order summary as a final-line confirmation
-// before the write rather than re-adding the confirm group (which
-// would put us on the path to ignoring --use-defaults).
+// Returns the final Picks or an error (notably tui.ErrCancelled on
+// user abort or No-on-confirm).
+//
+// `--use-defaults` rule (documented contract):
+//
+//   - phase 1 always runs (language is required, no default).
+//   - phase 2 (type form) runs iff the container category has no
+//     usable default. The container's `required:` and `default:`
+//     drive the test: if a default is present, accept it silently; if
+//     not, surface the prompt regardless of --use-defaults so the user
+//     gets to express the type-conditional pick once. (Type-conditional
+//     content has no sensible silent default — guessing "every project
+//     is a CLI" is the wrong shape.) Cancellation in phase 2 maps the
+//     same way as phase 1: ErrCancelled bubbles up.
+//   - phase 3 (scope form) is skipped under --use-defaults.
+//
+// UX tradeoff (preserved from PR #5 review L2 and revisited under
+// Dispatch 3): the --use-defaults path commits the file immediately
+// after the last interactive phase — no confirm group, no preview of
+// what's about to be written. The safety net is the existing-file
+// rule, which still rejects a write over an existing CLAUDE.md
+// without --force. If users report the no-preview UX as sharp in
+// practice, the v2 move is to surface the render-order summary as a
+// final-line confirmation before the write rather than re-adding the
+// confirm group (which would put us on the path to ignoring
+// --use-defaults).
 func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, error) {
 	lang, err := tui.RunLanguageForm(reg)
 	if err != nil {
 		return registry.Picks{}, err
 	}
 
-	// Seed Picks with the chosen language and apply defaults so
-	// form 2's bound variables start pre-populated.
-	//
-	// Ordering constraint (load-bearing): the language pick MUST be
-	// seeded into picks before ApplyDefaults is called. ApplyDefaults
-	// walks the chosen language's sub-category subtree only when
-	// `picks.Values[LanguageCategoryID]` is already set (see
-	// registry/defaults.go's chosenLang lookup). Moving the seed line
-	// below the ApplyDefaults call would silently drop every
-	// language-nested default from the `--use-defaults` interactive
-	// path — the form-2 sub-category bindings would come back empty
-	// and the user would see no pre-populated selections. The
-	// non-interactive path doesn't hit this because `--language` is
-	// parsed into the selection map before ResolveSelection runs;
-	// only the interactive path has the seed-then-default ordering
-	// exposed.
+	// Seed picks with the language pick, then apply defaults so any
+	// container category under the language has its default cell
+	// filled. Ordering constraint (load-bearing): the language pick
+	// MUST be in picks before ApplyDefaults so the chosen-language
+	// sub-tree's defaults flow — see registry/defaults.go's
+	// container-descent logic. Applying defaults BEFORE phase 2 is the
+	// new wrinkle: it gives the type form a seeded binding so the
+	// huh.Select lands on the registry default rather than the first
+	// option (huh v2 first-option pre-fill quirk).
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(lang)
 	picks = registry.ApplyDefaults(picks, reg)
 
+	// Phase 2: type pick when a container sub-category exists.
+	typeID, containerID, ranTypeForm, err := runTypePhase(reg, lang, picks, useDefaults)
+	if err != nil {
+		return registry.Picks{}, err
+	}
+	if ranTypeForm && typeID != "" && containerID != "" {
+		// The user expressed a type pick. Seed it into picks (it may
+		// be the same as the default or different) and re-apply
+		// defaults so the chosen option's subtree's defaults populate
+		// (the prior ApplyDefaults walked only the default-option's
+		// subtree; a different chosen option needs a second pass).
+		picks.Values[lang+"."+containerID] = registry.NewSingle(typeID)
+		picks = registry.ApplyDefaults(picks, reg)
+	}
+
 	if useDefaults {
-		// --use-defaults: skip form 2, return the defaulted Picks.
 		return picks, nil
 	}
 
-	return tui.RunSecondaryForm(reg, lang, picks)
+	// Resolve the effective typeID for phase 3 from picks (covers
+	// both the "user picked" and the "ApplyDefaults filled" cases).
+	effectiveType := ""
+	if containerID != "" {
+		if v := picks.Values[lang+"."+containerID]; v != nil && v.Single != nil {
+			effectiveType = *v.Single
+		}
+	}
+
+	return tui.RunScopeForm(reg, lang, effectiveType, picks)
+}
+
+// runTypePhase is the phase-2 helper extracted from runInteractive so
+// the --use-defaults short-circuit logic is readable in one place.
+// Returns (typeID, containerID, ranTypeForm, err):
+//
+//   - containerID is the id of the container sub-category under the
+//     language (e.g. `type`); empty when no container exists.
+//   - typeID is the chosen container-option id; only valid when
+//     ranTypeForm is true.
+//   - ranTypeForm reports whether the type form actually ran (or was
+//     short-circuited via the useDefaults+default path).
+//   - err is non-nil on hard failure or user cancellation (ErrCancelled
+//     wrapped via tui).
+//
+// The short-circuit rule (documented contract): when useDefaults is
+// set AND the container has a default, we don't prompt — the prior
+// ApplyDefaults already populated the cell from the registry default.
+// When useDefaults is set AND the container has no default, we prompt
+// anyway — the contract is "skip everything except the picks you
+// genuinely can't infer from defaults", and a no-default container is
+// by construction the second case.
+//
+// `initial` is the current picks state, used to seed the type form's
+// bound pointer so the highlighted option matches what's already in
+// picks (typically the registry default after ApplyDefaults has run).
+func runTypePhase(reg *registry.Registry, lang string, initial registry.Picks, useDefaults bool) (string, string, bool, error) {
+	container := tui.FindContainerSub(reg, lang)
+	if container == nil {
+		return "", "", false, nil
+	}
+	if useDefaults && container.DefaultSingle != "" {
+		return "", container.ID, false, nil
+	}
+	typeID, err := tui.RunTypeForm(reg, lang, initial)
+	if err != nil {
+		return "", container.ID, false, err
+	}
+	return typeID, container.ID, true, nil
+}
+
+// checkRequiredTree mirrors registry.applyDefaultsTree's container
+// descent so the required-category invariant is enforced at every
+// depth, not only at the top level. A required leaf or container with
+// no value at this point (no default, no user pick) is a hard error.
+//
+// `prefix` is the dotted Picks-key prefix in effect; an empty prefix
+// means we're at the top level. When descending into a container's
+// chosen option, the prefix gains the chosen option's id (eliding the
+// container's own id per CONTENT-STYLE.md §2.3 and matching how
+// ApplyDefaults / Render / ResolveSelection key nested cells).
+//
+// Container with no chosen option: we don't descend (no subtree is in
+// scope), but the container itself surfaces as required-empty above
+// if `required: true` and no default was filled in by ApplyDefaults.
+func checkRequiredTree(picks registry.Picks, cat *registry.Category, prefix string) error {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	if cat.Required {
+		v, ok := picks.Values[key]
+		if !ok || v == nil {
+			return fmt.Errorf("%s: required category not set and no default available", key)
+		}
+		// Defensive: a non-nil pointer to an empty value can still
+		// arise for required categories if a future caller bypasses
+		// ResolveSelection.
+		if cat.Pick == registry.PickSingle && (v.Single == nil || *v.Single == "") {
+			return fmt.Errorf("%s: required category resolved to empty", key)
+		}
+		if cat.Pick == registry.PickMulti && (v.Multi == nil || len(*v.Multi) == 0) {
+			return fmt.Errorf("%s: required category resolved to empty", key)
+		}
+	}
+	if !cat.IsContainer {
+		return nil
+	}
+	// Container: descend into the chosen option's subtree. No chosen
+	// option (covered above for required containers; benign for
+	// optional containers) → nothing further to check.
+	v := picks.Values[key]
+	if v == nil || v.Single == nil || *v.Single == "" {
+		return nil
+	}
+	chosen := *v.Single
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		if err := checkRequiredTree(picks, sub, childPrefix); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // finishGenerate is the shared tail of both the interactive and
 // non-interactive paths: required-category check, render, write (or
-// dry-run to stdout), success line, then (Phase 5) the claude review.
+// dry-run to stdout), success line, then the claude review.
 func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags, opts Options) error {
-	// Required-category check after defaults: a required category
-	// with no value at this point (no default, no user pick) is a
-	// hard error. ResolveSelection already rejected explicit-empty
-	// required, so this catches the "omitted entirely" case.
+	// Required-category check after defaults. Walks containers
+	// recursively so a required-no-default category nested under a
+	// chosen container option (e.g. a required leaf inside
+	// `python/10-type/cli/`) is also caught — otherwise the
+	// `--use-defaults` path would silently emit a truncated file.
+	// ResolveSelection already rejected required-empty at the keys it
+	// was given; this catches the "never appeared in the map" case at
+	// every depth.
 	for _, cat := range reg.Categories {
-		if !cat.Required {
-			continue
-		}
-		v, ok := picks.Values[cat.ID]
-		if !ok || v == nil {
-			return fmt.Errorf("%s: required category not set and no default available", cat.ID)
-		}
-		// Explicit-empty already rejected in ResolveSelection; defensive:
-		if cat.Pick == registry.PickSingle && (v.Single == nil || *v.Single == "") {
-			return fmt.Errorf("%s: required category resolved to empty", cat.ID)
-		}
-		if cat.Pick == registry.PickMulti && (v.Multi == nil || len(*v.Multi) == 0) {
-			return fmt.Errorf("%s: required category resolved to empty", cat.ID)
+		if err := checkRequiredTree(picks, cat, ""); err != nil {
+			return err
 		}
 	}
 
@@ -409,9 +422,12 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 	blocks := countBlocks(reg, picks)
 	fmt.Fprintln(cmd.ErrOrStderr(), tui.SuccessLine(flags.out, blocks, len(content)))
 
-	// Review. --no-review wins over --review (which is on by default),
-	// so any --no-review short-circuits.
-	if flags.noReview {
+	// Review. Either --no-review (true) OR --review=false skips. The
+	// `--review` flag defaults to true, so the un-set form passes
+	// straight through to runReview as before; the explicit-off form
+	// (`--review=false`) is now honoured, matching the previously-
+	// silent flag binding to user-visible behaviour.
+	if flags.noReview || !flags.review {
 		return nil
 	}
 	return runReview(cmd, content, flags, opts, timeout)
@@ -558,28 +574,62 @@ func terminalWidth(w io.Writer) int {
 // countBlocks returns the number of block files that contributed to
 // the rendered content for `picks`. Mirrors the renderer's walk order
 // so the success line's count matches what's actually in the file.
+//
+// Walk order matches render.renderScope: each container category
+// contributes the chosen option's scope base.md (when its `file:`
+// points at a base.md) plus its subtree, recursively.
 func countBlocks(reg *registry.Registry, picks registry.Picks) int {
 	n := 0
 	for _, cat := range reg.Categories {
-		if cat.ID == registry.LanguageCategoryID {
-			v := picks.Values[registry.LanguageCategoryID]
-			if v == nil || v.Single == nil || *v.Single == "" {
-				continue
-			}
-			n++ // language base.md
-			lang := *v.Single
-			for _, sub := range cat.Subcategories[lang] {
-				n += countCategoryBlocks(sub, picks.Values[lang+"."+sub.ID])
-			}
-			continue
-		}
-		n += countCategoryBlocks(cat, picks.Values[cat.ID])
+		n += countCategoryTree(cat, picks, "")
 	}
 	return n
 }
 
-// countCategoryBlocks returns the number of block files a category
-// contributes given its picked value. Mirrors render.renderCategory.
+// countCategoryTree mirrors render.renderScope's single-category leg.
+// Leaf categories contribute their selected option(s); container
+// categories contribute the chosen option's scope base.md (when its
+// `file:` points at a base.md) plus the recursive subtree of the
+// chosen option.
+func countCategoryTree(cat *registry.Category, picks registry.Picks, prefix string) int {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	if !cat.IsContainer {
+		return countCategoryBlocks(cat, picks.Values[key])
+	}
+
+	v := picks.Values[key]
+	if v == nil || v.Single == nil || *v.Single == "" {
+		return 0
+	}
+	chosen := *v.Single
+
+	n := 0
+	for _, opt := range cat.Options {
+		if opt.ID != chosen {
+			continue
+		}
+		if strings.HasSuffix(opt.File, "/base.md") {
+			n++
+		}
+		break
+	}
+
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		n += countCategoryTree(sub, picks, childPrefix)
+	}
+	return n
+}
+
+// countCategoryBlocks returns the number of block files a leaf
+// category contributes given its picked value. Mirrors
+// render.renderCategory.
 func countCategoryBlocks(cat *registry.Category, v *registry.Value) int {
 	if v == nil {
 		return 0

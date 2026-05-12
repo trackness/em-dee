@@ -1,0 +1,17 @@
+display_name: "Python type checker"
+pick: single
+required: false
+default: ty
+options:
+  - id: ty
+    display_name: "ty"
+    description: "ty type checker (Astral)."
+    file: ty.md
+  - id: mypy
+    display_name: "mypy"
+    description: "mypy type checker."
+    file: mypy.md
+  - id: pyright
+    display_name: "Pyright"
+    description: "Pyright type checker."
+    file: pyright.md

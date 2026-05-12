@@ -6,26 +6,24 @@ import (
 	"strings"
 )
 
-// ResolveSelection converts a loose map of flag-style values into a
+// ResolveSelection converts a loose map of selection input into a
 // fully typed Picks. It is the single resolution entry point shared
-// between CLI flag handling and `selection.yaml` golden-fixture
-// loading, so the two cannot drift.
+// between CLI selection handling (the surviving --language flag) and
+// future configuration-file loaders, so the two cannot drift.
 //
 // Input shape:
 //
 //   - Key form: top-level category id (`infra`) or nested
 //     `<lang-id>.<category-id>` (`python.framework`), matching the
 //     dotted-reference grammar.
-//   - Value form for single-pick: `string`. The empty string is
-//     "explicit none". A `[]string` for a single-pick category is a
-//     hard error.
+//   - Value form for single-pick: `string`. A `[]string` for a
+//     single-pick category is a hard error. An empty string for a
+//     required category is rejected up-front (required-empty); for an
+//     optional category it produces a non-nil-empty cell internally,
+//     but this shape is no longer constructable through the public
+//     surface after Dispatch 1.
 //   - Value form for multi-pick: `[]string` OR a comma-separated
-//     `string`. Cobra delivers multi-pick flags as plain strings under
-//     the plan Task 3.4 tradeoff (resolver = single source of truth
-//     for multi-pick parsing), and golden fixtures pass `[]string`
-//     directly via yaml. Accept both; whitespace around csv entries
-//     is trimmed. An empty slice (or empty string for csv) is
-//     "explicit none".
+//     `string`. Whitespace around csv entries is trimmed.
 //
 // Errors are aggregated up-front via fmt.Errorf — the resolver is
 // strict by design (reject everything before constructing the Picks),
@@ -65,21 +63,52 @@ func ResolveSelection(reg *Registry, m map[string]any) (Picks, error) {
 }
 
 // buildKeyIndex flattens the registry into a `key → *Category` map.
-// Top-level categories use their plain ID; language sub-categories
-// use `<lang-id>.<sub-id>`.
+// Top-level categories use their plain ID; container subtrees key
+// recursively as `<prefix>.<sub-cat-id>` where `<prefix>` is the
+// chosen container option's id, joined dot-style for every level of
+// container nesting (per CONTENT-STYLE.md §2.3 the container's own
+// id is elided, only the chosen option contributes to the namespace).
+//
+// Concrete shape at v1 (two-level):
+//
+//	language          → top-level container
+//	infra / ci / ...  → top-level leaves
+//	python.framework  → language opt "python", sub-cat "framework"
+//
+// After Dispatch 4 introduces three-level type-conditional categories:
+//
+//	python.type             → container nested under python
+//	python.cli.framework    → python → type(=cli) → framework
 func buildKeyIndex(reg *Registry) map[string]*Category {
 	index := map[string]*Category{}
 	for _, cat := range reg.Categories {
-		index[cat.ID] = cat
-		if cat.ID == LanguageCategoryID {
-			for langID, subs := range cat.Subcategories {
-				for _, sub := range subs {
-					index[langID+"."+sub.ID] = sub
-				}
-			}
-		}
+		indexCategoryTree(index, cat, "")
 	}
 	return index
+}
+
+// indexCategoryTree registers `cat` under `<prefix>.<cat.ID>` (or just
+// `cat.ID` at top level) and, when `cat` is a container, recurses into
+// every option's subtree with the prefix updated to include that
+// option's id.
+func indexCategoryTree(index map[string]*Category, cat *Category, prefix string) {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	index[key] = cat
+	if !cat.IsContainer {
+		return
+	}
+	for _, opt := range cat.Options {
+		childPrefix := opt.ID
+		if prefix != "" {
+			childPrefix = prefix + "." + opt.ID
+		}
+		for _, sub := range cat.Subcategories[opt.ID] {
+			indexCategoryTree(index, sub, childPrefix)
+		}
+	}
 }
 
 // resolveValue converts one input value (string | []string) into a
@@ -95,7 +124,11 @@ func resolveValue(cat *Category, raw any) (*Value, error) {
 			return nil, err
 		}
 		if s == "" {
-			// Explicit-none: non-nil pointer, empty string.
+			// Empty string for an optional category produces a non-nil
+			// pointer to "" internally; required categories are
+			// rejected one frame up via isEmpty. The cell shape is
+			// retained for renderer/fillIfUnset behaviour but is no
+			// longer reachable through the public API.
 			empty := ""
 			return &Value{Single: &empty}, nil
 		}
@@ -150,12 +183,10 @@ func asString(raw any) (string, error) {
 	}
 }
 
-// asStringList accepts a `[]string` or a comma-separated `string`
-// (cobra delivers multi-pick String flags as the latter — see plan
-// Task 3.4 tradeoff). Whitespace around csv entries is trimmed; a
-// leading/trailing comma is not allowed (it produces an empty entry
-// which fails option-id validation). An empty string maps to an
-// empty list (= explicit-none).
+// asStringList accepts a `[]string` or a comma-separated `string`.
+// Whitespace around csv entries is trimmed; a leading/trailing comma
+// is not allowed (it produces an empty entry which fails option-id
+// validation). An empty string maps to an empty list.
 func asStringList(raw any) ([]string, error) {
 	switch v := raw.(type) {
 	case []string:
@@ -188,10 +219,10 @@ func optionExists(cat *Category, id string) bool {
 	return cat.HasOption(id)
 }
 
-// isEmpty reports whether a *Value represents the explicit-none
-// state. Only used to enforce "required category cannot be empty"
-// at resolution time — `resolveValue` always returns a non-nil
-// *Value or an error, so this is only called on non-nil values.
+// isEmpty reports whether a non-nil *Value carries no option ids.
+// Only used to enforce "required category cannot be empty" at
+// resolution time — `resolveValue` always returns a non-nil *Value
+// or an error, so this is only called on non-nil values.
 func isEmpty(v *Value) bool {
 	if v.Single != nil {
 		return *v.Single == ""

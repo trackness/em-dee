@@ -1,0 +1,12 @@
+display_name: "Logging"
+pick: single
+required: false
+options:
+  - id: stdlib
+    display_name: "Standard library"
+    description: "stdlib logging"
+    file: stdlib.md
+  - id: loguru
+    display_name: "Loguru"
+    description: "loguru"
+    file: loguru.md

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 // templatesFS embeds the production templates tree at build time. The
@@ -83,75 +84,101 @@ func (r *Registry) OptionBlock(cat *Category, optionID string) ([]byte, error) {
 // walk descends from `root` and assembles the Registry. An empty (or
 // missing) root yields an empty Registry with no error — this keeps
 // Task 1.2's "empty templates compiles" guarantee. Each top-level
-// `NN-name` directory becomes one Category; the `10-language` entry
-// recurses into per-language subfolders.
+// `NN-name` directory becomes one Category; any category whose options
+// point at subdirectories (a *container* per CONTENT-STYLE.md §2.3,
+// §2.4) recurses through each option's subtree to collect further
+// categories at arbitrary depth.
+//
+// Depth is bounded by the on-disk tree (no theoretical limit; v1 is
+// three levels under language). There is no infinite-loop risk:
+// descent only follows option ids, each id appears once per scope, and
+// the filesystem is a finite tree.
 func walk(fsys fs.FS, root string) (*Registry, error) {
 	reg := &Registry{}
 
-	dirs, err := listCategoryDirs(fsys, root)
+	cats, err := walkScope(fsys, root)
 	if err != nil {
-		// Treat "root doesn't exist" as empty rather than error so
-		// the production embedded FS (only `.gitkeep` for now) loads
-		// cleanly. Other I/O errors do propagate.
+		return nil, err
+	}
+	reg.Categories = cats
+	return reg, nil
+}
+
+// walkScope returns the NN-prefixed categories that live directly
+// under `dir`, recursing into any container category's option
+// subdirectories so the result is a fully-populated subtree. A
+// non-existent `dir` (the empty-templates case) yields a nil slice and
+// no error; that's how the embedded-FS placeholder load stays clean.
+func walkScope(fsys fs.FS, dir string) ([]*Category, error) {
+	subDirs, err := listCategoryDirs(fsys, dir)
+	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return reg, nil
+			return nil, nil
 		}
 		return nil, err
 	}
 
-	for _, name := range dirs {
-		dir := path.Join(root, name)
-		// Explicit hygiene rule: every category folder must contain
-		// exactly one _index.yaml. Probe first so the error message
-		// names the rule rather than relying on the shape of
-		// fs.ReadFile's I/O error — a future os.DirFS swap that
-		// silently ignored missing files would otherwise go
-		// undetected.
-		if _, err := fs.Stat(fsys, path.Join(dir, "_index.yaml")); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil, fmt.Errorf("%s: missing _index.yaml", dir)
-			}
-			return nil, err
-		}
-		cat, err := parseIndex(fsys, dir)
+	var cats []*Category
+	for _, name := range subDirs {
+		catDir := path.Join(dir, name)
+		cat, err := parseCategoryRecursive(fsys, catDir)
 		if err != nil {
 			return nil, err
 		}
-		// Special-case the language category: descend into each
-		// language option's folder and collect its sub-categories.
-		// The language category is the only one with subcategories;
-		// all others stay flat. Match on the parsed (prefix-stripped)
-		// id rather than the on-disk folder name so the literal
-		// `10-language` lives only inside parseIndex's stripPrefix and
-		// is never re-encoded at this layer.
-		if cat.ID == LanguageCategoryID {
-			cat.Subcategories = map[string][]*Category{}
-			for _, opt := range cat.Options {
-				langDir := path.Join(dir, opt.ID)
-				subDirs, err := listCategoryDirs(fsys, langDir)
-				if err != nil && !errors.Is(err, fs.ErrNotExist) {
-					return nil, err
-				}
-				var subs []*Category
-				for _, subName := range subDirs {
-					subDir := path.Join(langDir, subName)
-					if _, err := fs.Stat(fsys, path.Join(subDir, "_index.yaml")); err != nil {
-						if errors.Is(err, fs.ErrNotExist) {
-							return nil, fmt.Errorf("%s: missing _index.yaml", subDir)
-						}
-						return nil, err
-					}
-					sub, err := parseIndex(fsys, subDir)
-					if err != nil {
-						return nil, err
-					}
-					subs = append(subs, sub)
-				}
-				cat.Subcategories[opt.ID] = subs
-			}
+		cats = append(cats, cat)
+	}
+	return cats, nil
+}
+
+// parseCategoryRecursive reads `<catDir>/_index.yaml`, classifies the
+// category as leaf or container by inspecting its options' `file:`
+// references, and if it's a container recurses into each option's
+// subdirectory to collect that subtree's sub-categories.
+//
+// Container classification rule: a category is a container iff *any*
+// option's `file:` contains a `/`. Mixed shapes (some options leaf,
+// some container) are passed through unflagged at this layer — the
+// validator owns reporting them as a hygiene error so a single
+// `task verify` run surfaces every problem at once rather than aborting
+// at the first failure.
+func parseCategoryRecursive(fsys fs.FS, catDir string) (*Category, error) {
+	if _, err := fs.Stat(fsys, path.Join(catDir, "_index.yaml")); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%s: missing _index.yaml", catDir)
 		}
-		reg.Categories = append(reg.Categories, cat)
+		return nil, err
+	}
+	cat, err := parseIndex(fsys, catDir)
+	if err != nil {
+		return nil, err
 	}
 
-	return reg, nil
+	if !looksLikeContainer(cat) {
+		return cat, nil
+	}
+
+	cat.IsContainer = true
+	cat.Subcategories = map[string][]*Category{}
+	for _, opt := range cat.Options {
+		optDir := path.Join(catDir, opt.ID)
+		subs, err := walkScope(fsys, optDir)
+		if err != nil {
+			return nil, err
+		}
+		cat.Subcategories[opt.ID] = subs
+	}
+	return cat, nil
+}
+
+// looksLikeContainer reports whether any option in the category
+// references a subdirectory (its `file:` contains a `/`). The validator
+// is responsible for rejecting *mixed* shapes (some options leaf, some
+// container); here we just need to know whether to recurse.
+func looksLikeContainer(cat *Category) bool {
+	for _, opt := range cat.Options {
+		if strings.Contains(opt.File, "/") {
+			return true
+		}
+	}
+	return false
 }

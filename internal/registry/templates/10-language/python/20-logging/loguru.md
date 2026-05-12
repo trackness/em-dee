@@ -1,4 +1,4 @@
-<!-- TODO: real content for python.logging=loguru -->
+<!-- TODO: real content for python.logging.loguru -->
 
 ## Loguru
 

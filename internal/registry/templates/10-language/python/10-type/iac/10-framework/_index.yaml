@@ -1,0 +1,9 @@
+display_name: "Python IaC framework"
+pick: single
+required: false
+default: pulumi
+options:
+  - id: pulumi
+    display_name: "Pulumi"
+    description: "Pulumi infrastructure-as-code framework."
+    file: pulumi.md

@@ -15,11 +15,12 @@ func testRegistry() *Registry {
 	return &Registry{
 		Categories: []*Category{
 			{
-				Path:     "templates/10-language",
-				ID:       "language",
-				Pick:     PickSingle,
-				Required: true,
-				Options:  []Option{{ID: "python"}, {ID: "go"}},
+				Path:        "templates/10-language",
+				ID:          "language",
+				Pick:        PickSingle,
+				Required:    true,
+				IsContainer: true,
+				Options:     []Option{{ID: "python"}, {ID: "go"}},
 				Subcategories: map[string][]*Category{
 					"python": {
 						{
@@ -92,31 +93,6 @@ func TestApplyDefaults_UnsetFilledFromDefault(t *testing.T) {
 	}
 	if !reflect.DeepEqual(*infra.Multi, []string{"docker"}) {
 		t.Errorf("infra = %v, want [docker]", *infra.Multi)
-	}
-}
-
-// TestApplyDefaults_ExplicitNonePreserved: an explicit-empty Picks
-// value (non-nil pointer, empty value) is left alone.
-func TestApplyDefaults_ExplicitNonePreserved(t *testing.T) {
-	t.Parallel()
-
-	picks := NewPicks()
-	picks.Values["language"] = NewSingle("python")
-	// Explicit-none on python.framework
-	empty := ""
-	picks.Values["python.framework"] = &Value{Single: &empty}
-	// Explicit-none on infra (non-nil empty slice).
-	picks.Values["infra"] = NewMulti(nil)
-
-	out := ApplyDefaults(picks, testRegistry())
-
-	got := out.Values["python.framework"]
-	if got == nil || got.Single == nil || *got.Single != "" {
-		t.Errorf("python.framework expected explicit-empty, got %+v", got)
-	}
-	infra := out.Values["infra"]
-	if infra == nil || infra.Multi == nil || len(*infra.Multi) != 0 {
-		t.Errorf("infra expected explicit-empty, got %+v", infra)
 	}
 }
 

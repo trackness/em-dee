@@ -1,0 +1,17 @@
+display_name: "Go server framework"
+pick: single
+required: false
+default: stdlib-net-http
+options:
+  - id: stdlib-net-http
+    display_name: "net/http (stdlib)"
+    description: "Standard library net/http server."
+    file: stdlib-net-http.md
+  - id: gin
+    display_name: "Gin"
+    description: "Gin HTTP web framework."
+    file: gin.md
+  - id: echo
+    display_name: "Echo"
+    description: "Echo HTTP web framework."
+    file: echo.md

@@ -87,6 +87,43 @@ func TestShow_UnknownRef(t *testing.T) {
 	}
 }
 
+// TestShow_NNPrefixSuggestion asserts the resolver's NN-prefix
+// suggestion fires for inputs that look like on-disk folder names
+// rather than canonical ids. Pre-fix, the error was a generic
+// "not found in scope" which left the user guessing what segment
+// shape the ref grammar actually accepts.
+func TestShow_NNPrefixSuggestion(t *testing.T) {
+	cases := []struct {
+		ref           string
+		wantSuggested string
+	}{
+		// Top-level NN-prefixed segment.
+		{"50-linter.ruff", "linter"},
+		// Nested NN-prefixed segment (in scope).
+		{"python.50-linter.ruff", "linter"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.ref, func(t *testing.T) {
+			reg := loadFixtureRegistry(t)
+			root := NewRootCmd(Options{Registry: reg})
+			buf := &bytes.Buffer{}
+			root.SetOut(buf)
+			root.SetErr(buf)
+			root.SetArgs([]string{"show", tc.ref})
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("expected error for %q, got success\noutput: %s", tc.ref, buf.String())
+			}
+			if !strings.Contains(err.Error(), tc.wantSuggested) {
+				t.Errorf("error should suggest the stripped form %q; got: %v", tc.wantSuggested, err)
+			}
+			if !strings.Contains(err.Error(), "NN-") {
+				t.Errorf("error should mention the NN-prefix convention; got: %v", err)
+			}
+		})
+	}
+}
+
 // TestShow_NoFrameworkInFixture exercises `go.framework.gin` — we
 // don't have a go.framework category in the fixture, so this test
 // verifies the resolver fails cleanly (rather than the block-found

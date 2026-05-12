@@ -1,0 +1,17 @@
+display_name: "Python CLI consumer"
+pick: single
+required: false
+default: human
+options:
+  - id: human
+    display_name: "Human"
+    description: "Default output for human terminal use."
+    file: human.md
+  - id: agent
+    display_name: "Agent"
+    description: "Strict JSON output for agent / skill-consumer use."
+    file: agent.md
+  - id: mixed
+    display_name: "Mixed"
+    description: "JSON default with first-class human alternate."
+    file: mixed.md

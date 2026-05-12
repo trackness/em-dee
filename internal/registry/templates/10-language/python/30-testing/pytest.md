@@ -1,4 +1,4 @@
-<!-- TODO: real content for python.testing=pytest -->
+<!-- TODO: real content for python.testing.pytest -->
 
 ## pytest
 

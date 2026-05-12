@@ -1,0 +1,12 @@
+display_name: "Consumer"
+pick: single
+required: false
+options:
+  - id: human
+    display_name: "Human"
+    description: "Human-readable default output"
+    file: human.md
+  - id: agent
+    display_name: "Agent"
+    description: "JSON-default strict for agents"
+    file: agent.md

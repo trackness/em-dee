@@ -38,20 +38,30 @@ type Option struct {
 // Pick == PickMulti, Default is a list of option IDs. The empty string
 // / nil Default means "no default".
 //
-// Subcategories is populated only for the top-level `language`
-// category: it maps a language option ID to that language's ordered
-// list of sub-categories (10-framework, 20-logging, …). All other
-// categories carry a nil Subcategories.
+// IsContainer marks the category as a *container* category in the
+// generalised three-level-capable schema (CONTENT-STYLE.md §2.3, §2.4):
+// a container's options point at subdirectories rather than `.md`
+// files, and each option's subtree holds further categories. The
+// language category is the canonical example today (its options point
+// at `<lang>/base.md`); after Dispatch 4 the per-language `10-type/`
+// folder is the second container. A non-container category is a
+// *leaf* — its options point at flat `.md` files in the same folder.
+//
+// Subcategories is populated only when IsContainer is true: it maps a
+// container option ID to that option's ordered list of sub-categories
+// (each itself a Category that may, recursively, be another container).
+// Non-container categories carry a nil Subcategories.
 type Category struct {
 	Path          string
 	ID            string // last segment of Path with the NN- prefix stripped
 	DisplayName   string
 	Pick          Pick
 	Required      bool
+	IsContainer   bool                   // true when options point at subdirectories with their own _index.yaml trees
 	DefaultSingle string                 // populated when Pick == PickSingle and a default is set; empty string = no default
 	DefaultMulti  []string               // populated when Pick == PickMulti and a default is set; nil or empty slice = no default
 	Options       []Option               // declaration order from `_index.yaml`
-	Subcategories map[string][]*Category // language-only: keyed by language option ID
+	Subcategories map[string][]*Category // populated when IsContainer is true; keyed by chosen option ID
 }
 
 // Registry is the root view of the templates filesystem in render
@@ -69,25 +79,35 @@ type Registry struct {
 	fsys fs.FS
 }
 
-// Value is the tri-state per-category selection cell used inside
-// Picks. Exactly one of Single or Multi is non-nil, matching the
-// owning category's Pick. Nil pointer = "unset" (default-eligible);
-// non-nil pointer to an empty value = "explicit none" (default
-// suppressed); non-nil pointer to a non-empty value = "chosen".
+// Value is the per-category selection cell used inside Picks. Exactly
+// one of Single or Multi is non-nil, matching the owning category's
+// Pick. Nil *Value (or a Value with both fields nil) means "unset" —
+// ApplyDefaults will fill it from the registry's default. A non-nil
+// *Value carrying option ids means "the user chose these".
+//
+// Dispatch 1 collapsed the previous tri-state (unset / explicit-none /
+// chosen) to a binary at the API level: callers can no longer assert
+// "the user explicitly chose nothing." The internal resolver still
+// constructs a non-nil-pointer-to-empty cell when it sees an empty
+// input, and the renderer still treats that cell as "emit no block",
+// but neither shape is part of the contract exposed to flag, form, or
+// future config-file consumers — they always express selections as
+// either "absent from the map" or "this list of option ids".
 type Value struct {
 	Single *string
 	Multi  *[]string
 }
 
-// NewSingle constructs a Value holding a chosen single-pick option.
-// Pass "" to record an explicit-none.
+// NewSingle constructs a Value holding a single-pick selection.
 func NewSingle(id string) *Value {
 	v := id
 	return &Value{Single: &v}
 }
 
-// NewMulti constructs a Value holding a chosen multi-pick selection.
-// Pass nil or an empty slice to record an explicit-none.
+// NewMulti constructs a Value holding a multi-pick selection. A nil or
+// empty input produces a non-nil pointer to an empty slice; the
+// renderer treats this the same as "unset" (emits no block), and the
+// distinction is no longer load-bearing in the public API.
 func NewMulti(ids []string) *Value {
 	if ids == nil {
 		ids = []string{}

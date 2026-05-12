@@ -1,0 +1,17 @@
+display_name: "Python linter"
+pick: single
+required: false
+default: ruff
+options:
+  - id: ruff
+    display_name: "Ruff"
+    description: "Ruff linter (Astral)."
+    file: ruff.md
+  - id: flake8
+    display_name: "Flake8"
+    description: "Flake8 linter."
+    file: flake8.md
+  - id: pylint
+    display_name: "Pylint"
+    description: "Pylint linter."
+    file: pylint.md

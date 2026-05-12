@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -71,13 +70,8 @@ func newListCmd(opts Options) *cobra.Command {
 
 // resolveRegistry returns the test-injected Registry if set, otherwise
 // calls the production loader. Centralised so every subcommand uses
-// the same lookup. The registryLoadErr seam lets tests force a load
-// failure even when Registry is nil — used by the H2 regression test
-// for generate's "registry failed to load" surfacing.
+// the same lookup.
 func resolveRegistry(opts Options) (*registry.Registry, error) {
-	if opts.registryLoadErr != nil {
-		return nil, opts.registryLoadErr
-	}
 	if opts.Registry != nil {
 		return opts.Registry, nil
 	}
@@ -123,23 +117,19 @@ func writeCategoryHuman(w io.Writer, cat *registry.Category, depth int) error {
 		if _, err := fmt.Fprintf(w, "%s  - %s%s\n", indent, opt.ID, marker); err != nil {
 			return err
 		}
-		// Language option carries nested sub-categories.
+		// Container option carries a nested subtree of further
+		// categories. Recurse so the tree view renders the full
+		// catalog at any depth.
+		//
+		// Order: the registry walk yields subs in NN-prefix folder
+		// order (see registry.listCategoryDirs), which IS the
+		// documented render order. Sorting by id here corrupts that
+		// invariant — alphabetical-by-id only happens to match
+		// NN-prefix order when option ids are kebab-equivalent. Iterate
+		// the slice directly.
 		if subs, ok := cat.Subcategories[opt.ID]; ok {
-			// Stable order: registry walk already sorts by folder
-			// prefix, so subs is already in render order. Defensive
-			// sort by ID keeps output deterministic if a future
-			// change loosens that.
-			ids := make([]string, len(subs))
-			for i, s := range subs {
-				ids[i] = s.ID
-			}
-			sort.Strings(ids)
-			byID := map[string]*registry.Category{}
-			for _, s := range subs {
-				byID[s.ID] = s
-			}
-			for _, id := range ids {
-				if err := writeCategoryHuman(w, byID[id], depth+2); err != nil {
+			for _, sub := range subs {
+				if err := writeCategoryHuman(w, sub, depth+2); err != nil {
 					return err
 				}
 			}

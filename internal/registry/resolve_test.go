@@ -59,9 +59,10 @@ func TestResolveSelection_MultiPickFromSlice(t *testing.T) {
 	}
 }
 
-// TestResolveSelection_MultiPickFromCSV: cobra delivers multi-pick
-// flags as comma-separated strings when we use plain String flags
-// (see plan Task 3.4 tradeoff). The resolver accepts both forms.
+// TestResolveSelection_MultiPickFromCSV: comma-separated strings are
+// accepted as a valid multi-pick input form (alongside []string). The
+// resolver is the single source of truth for csv parsing so future
+// callers don't reinvent it.
 func TestResolveSelection_MultiPickFromCSV(t *testing.T) {
 	t.Parallel()
 
@@ -79,76 +80,6 @@ func TestResolveSelection_MultiPickFromCSV(t *testing.T) {
 	got := *out.Values["infra"].Multi
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("infra = %v, want %v", got, want)
-	}
-}
-
-// TestResolveSelection_SinglePickEmptyString: an empty value for a
-// single-pick category becomes the explicit-none state (non-nil
-// pointer, empty string).
-func TestResolveSelection_SinglePickEmptyString(t *testing.T) {
-	t.Parallel()
-
-	reg := testRegistry()
-	in := map[string]any{
-		"language":         "python",
-		"python.framework": "",
-	}
-	out, err := ResolveSelection(reg, in)
-	if err != nil {
-		t.Fatalf("ResolveSelection: %v", err)
-	}
-
-	fw := out.Values["python.framework"]
-	if fw == nil || fw.Single == nil || *fw.Single != "" {
-		t.Errorf("python.framework = %+v, want explicit-none", fw)
-	}
-}
-
-// TestResolveSelection_MultiPickEmptySlice: an empty []string becomes
-// the explicit-none state for a multi-pick category.
-func TestResolveSelection_MultiPickEmptySlice(t *testing.T) {
-	t.Parallel()
-
-	reg := testRegistry()
-	in := map[string]any{
-		"language": "python",
-		"infra":    []string{},
-	}
-	out, err := ResolveSelection(reg, in)
-	if err != nil {
-		t.Fatalf("ResolveSelection: %v", err)
-	}
-
-	infra := out.Values["infra"]
-	if infra == nil || infra.Multi == nil {
-		t.Fatalf("infra should be non-nil pointer with empty slice, got %+v", infra)
-	}
-	if len(*infra.Multi) != 0 {
-		t.Errorf("infra = %v, want empty slice", *infra.Multi)
-	}
-}
-
-// TestResolveSelection_MultiPickEmptyStringInSlice: pins the
-// asymmetry called out in L3 of the Phase 1 review: a single-element
-// `[]string{""}` is **not** explicit-none (that would be a zero-
-// length slice). It's a one-element list with an empty entry, which
-// fails option-id validation. `infra: ""` (csv form) → explicit-none;
-// `infra: [""]` → `unknown option ""`. Both error sensibly, but the
-// asymmetry is real and we pin it.
-func TestResolveSelection_MultiPickEmptyStringInSlice(t *testing.T) {
-	t.Parallel()
-
-	reg := testRegistry()
-	in := map[string]any{
-		"language": "python",
-		"infra":    []string{""},
-	}
-	_, err := ResolveSelection(reg, in)
-	if err == nil {
-		t.Fatal("expected error for []string{\"\"}, got nil")
-	}
-	if !strings.Contains(err.Error(), `unknown option ""`) {
-		t.Errorf("error %q should mention 'unknown option \"\"'", err)
 	}
 }
 

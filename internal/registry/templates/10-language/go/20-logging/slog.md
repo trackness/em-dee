@@ -1,4 +1,4 @@
-<!-- TODO: real content for go.logging=slog -->
+<!-- TODO: real content for go.logging.slog -->
 
 ## log/slog (stdlib)
 

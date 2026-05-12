@@ -1,0 +1,17 @@
+display_name: "Python package manager"
+pick: single
+required: false
+default: uv
+options:
+  - id: uv
+    display_name: "uv"
+    description: "uv, fast Rust-based Python package and project manager."
+    file: uv.md
+  - id: poetry
+    display_name: "Poetry"
+    description: "Poetry dependency and packaging manager."
+    file: poetry.md
+  - id: pip-tools
+    display_name: "pip-tools"
+    description: "pip-tools (pip-compile / pip-sync)."
+    file: pip-tools.md
