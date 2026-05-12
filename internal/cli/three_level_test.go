@@ -92,9 +92,12 @@ func TestShow_ThreeLevel_UnknownDeepRef(t *testing.T) {
 }
 
 // TestList_ThreeLevel_RendersTree asserts `em-dee list` walks the
-// three-level fixture all the way down — its tree view must surface
-// the nested `framework` and `consumer` leaves under the `type`
-// container's `cli` option.
+// three-level fixture all the way down AND emits sub-categories in
+// NN-prefix render order. The previous presence-only assertion
+// allowed the H2 ordering regression to slip past CI: `framework`
+// (10-framework) and `consumer` (20-consumer) were both present, but
+// in alphabetical order rather than the documented folder-prefix
+// order. The order-pin below catches that on its way past.
 func TestList_ThreeLevel_RendersTree(t *testing.T) {
 	reg := loadThreeLevelFixture(t)
 	root := NewRootCmd(Options{Registry: reg})
@@ -106,7 +109,9 @@ func TestList_ThreeLevel_RendersTree(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 	out := buf.String()
-	for _, want := range []string{
+
+	// Presence check (each expected substring must appear at least once).
+	wants := []string{
 		"language",
 		"python",
 		"type",
@@ -117,9 +122,27 @@ func TestList_ThreeLevel_RendersTree(t *testing.T) {
 		"human",
 		"library",
 		"logging",
-	} {
+	}
+	for _, want := range wants {
 		if !strings.Contains(out, want) {
 			t.Errorf("list output missing %q\n---\n%s", want, out)
 		}
+	}
+
+	// Order check: the sub-categories under cli are `10-framework` then
+	// `20-consumer`, so the category header line for `framework` must
+	// appear before the category header line for `consumer`. Looking
+	// for the bracketed `framework [single]` / `consumer [single]`
+	// header keeps the assertion from coincidentally matching the
+	// option-list lines (`- consumer`) under another category.
+	frameworkIdx := strings.Index(out, "framework [single]")
+	consumerIdx := strings.Index(out, "consumer [single]")
+	if frameworkIdx < 0 || consumerIdx < 0 {
+		t.Fatalf("missing one of the expected category headers (framework=%d, consumer=%d):\n%s",
+			frameworkIdx, consumerIdx, out)
+	}
+	if !(frameworkIdx < consumerIdx) {
+		t.Errorf("sub-categories must render in NN-prefix order (framework before consumer); got framework@%d, consumer@%d\n---\n%s",
+			frameworkIdx, consumerIdx, out)
 	}
 }

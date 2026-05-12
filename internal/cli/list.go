@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -121,22 +120,16 @@ func writeCategoryHuman(w io.Writer, cat *registry.Category, depth int) error {
 		// Container option carries a nested subtree of further
 		// categories. Recurse so the tree view renders the full
 		// catalog at any depth.
+		//
+		// Order: the registry walk yields subs in NN-prefix folder
+		// order (see registry.listCategoryDirs), which IS the
+		// documented render order. Sorting by id here corrupts that
+		// invariant — alphabetical-by-id only happens to match
+		// NN-prefix order when option ids are kebab-equivalent. Iterate
+		// the slice directly.
 		if subs, ok := cat.Subcategories[opt.ID]; ok {
-			// Stable order: registry walk already sorts by folder
-			// prefix, so subs is already in render order. Defensive
-			// sort by ID keeps output deterministic if a future
-			// change loosens that.
-			ids := make([]string, len(subs))
-			for i, s := range subs {
-				ids[i] = s.ID
-			}
-			sort.Strings(ids)
-			byID := map[string]*registry.Category{}
-			for _, s := range subs {
-				byID[s.ID] = s
-			}
-			for _, id := range ids {
-				if err := writeCategoryHuman(w, byID[id], depth+2); err != nil {
+			for _, sub := range subs {
+				if err := writeCategoryHuman(w, sub, depth+2); err != nil {
 					return err
 				}
 			}
