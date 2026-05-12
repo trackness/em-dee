@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/trackness/em-dee/internal/registry"
 )
@@ -92,6 +93,71 @@ func TestRender_ThreeLevel_LibraryNoSubtree(t *testing.T) {
 		if bytes.Contains(got, []byte(banned)) {
 			t.Errorf("unexpected block %q present in library-only output:\n%s", banned, got)
 		}
+	}
+}
+
+// TestRender_ThreeLevel_ContainerOptionNoBase exercises the
+// alternate container-option shape: `file: <opt>/` (no scope base).
+// The renderer must NOT emit a scope-base block when the option's
+// `file:` doesn't reference one — only the chosen leaf blocks
+// underneath should appear.
+func TestRender_ThreeLevel_ContainerOptionNoBase(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		"templates/10-language/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Language"
+pick: single
+required: true
+options:
+  - id: python
+    display_name: "Python"
+    description: "Python"
+    file: python/base.md
+`)},
+		"templates/10-language/python/base.md": &fstest.MapFile{Data: []byte("## Python\n\nPython base block.\n")},
+		"templates/10-language/python/10-type/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Program type"
+pick: single
+required: false
+options:
+  - id: cli
+    display_name: "CLI"
+    description: "CLI"
+    file: cli/
+`)},
+		"templates/10-language/python/10-type/cli/10-framework/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Framework"
+pick: single
+required: false
+options:
+  - id: typer
+    display_name: "Typer"
+    description: "Typer"
+    file: typer.md
+`)},
+		"templates/10-language/python/10-type/cli/10-framework/typer.md": &fstest.MapFile{Data: []byte("### Typer\n\nTyper framework block.\n")},
+	}
+	reg, err := registry.LoadFS(fsys, "templates")
+	if err != nil {
+		t.Fatalf("LoadFS: %v", err)
+	}
+
+	picks := registry.NewPicks()
+	picks.Values["language"] = registry.NewSingle("python")
+	picks.Values["python.type"] = registry.NewSingle("cli")
+	picks.Values["python.cli.framework"] = registry.NewSingle("typer")
+
+	got, err := Render(reg, picks)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	// Must contain both: language base + framework leaf.
+	for _, want := range []string{"Python base block.", "Typer framework block."} {
+		if !bytes.Contains(got, []byte(want)) {
+			t.Errorf("missing block %q in:\n%s", want, got)
+		}
+	}
+	// Must NOT contain a CLI-type base.md — there is none on disk
+	// and the option declared `file: cli/` (no scope-base).
+	if bytes.Contains(got, []byte("CLI type base block.")) {
+		t.Errorf("renderer emitted a CLI scope-base despite file: cli/ declaring none:\n%s", got)
 	}
 }
 

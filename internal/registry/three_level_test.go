@@ -324,6 +324,53 @@ options:
 			wantSubs: []string{"container", "single"},
 		},
 		{
+			// CONTENT-STYLE.md §2.7: an `.md` file at a
+			// container-option scope folder (e.g. inside
+			// `python/10-type/cli/`) that isn't `base.md` is
+			// unreachable from the manifest and rejected.
+			name: "stray .md at container-option scope rejected",
+			mutate: func(m fstest.MapFS) {
+				m["templates/10-language/python/10-type/cli/notes.md"] = &fstest.MapFile{Data: []byte("stray\n")}
+			},
+			wantSubs: []string{"orphan", "notes.md"},
+		},
+		{
+			// Scope-level id collision: a sibling sub-category id
+			// equals a nested container's option id within the same
+			// scope. The show resolver's category-first
+			// disambiguation would shadow the container option's
+			// reachability.
+			name: "container option id collides with sibling sub-category id",
+			mutate: func(m fstest.MapFS) {
+				// Add a `10-framework` leaf as a sibling to the
+				// `10-type` container under python — and rename the
+				// `10-type` container's option from `cli` to
+				// `framework` to engineer the collision.
+				m["templates/10-language/python/10-type/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "Program type"
+pick: single
+required: false
+options:
+  - id: framework
+    display_name: "Framework type"
+    description: "Framework type"
+    file: framework/base.md
+`)}
+				m["templates/10-language/python/10-type/framework/base.md"] = &fstest.MapFile{Data: []byte("framework type base\n")}
+				// And a sibling python sub-category whose id is `framework` too.
+				m["templates/10-language/python/20-framework/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "HTTP framework"
+pick: single
+required: false
+options:
+  - id: fastapi
+    display_name: "FastAPI"
+    description: "FastAPI"
+    file: fastapi.md
+`)}
+				m["templates/10-language/python/20-framework/fastapi.md"] = &fstest.MapFile{Data: []byte("fastapi\n")}
+			},
+			wantSubs: []string{"collides", "framework"},
+		},
+		{
 			// The depth-walk rule: a hygiene violation deep in the
 			// tree (here: an empty display_name in a third-level
 			// leaf) must still be surfaced by the recursive
@@ -410,6 +457,51 @@ func TestThreeLevel_ResolveDeepSelection(t *testing.T) {
 	}
 	if v := picks.Values["python.cli.consumer"]; v == nil || v.Single == nil || *v.Single != "agent" {
 		t.Errorf("python.cli.consumer = %+v, want agent", v)
+	}
+}
+
+// TestThreeLevel_ContainerOptionNoBase asserts the alternate
+// container-option convention is accepted: a `file: <opt>/` (no
+// trailing `base.md`) declares the option has no scope-base block,
+// and the validator must accept the shape provided no `base.md`
+// exists in the subdirectory.
+func TestThreeLevel_ContainerOptionNoBase(t *testing.T) {
+	t.Parallel()
+	// Build a MapFS with type=cli having `file: cli/` and no
+	// cli/base.md on disk — just an NN-prefixed sub-category.
+	fsys := fstest.MapFS{
+		"templates/10-language/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Language"
+pick: single
+required: true
+options:
+  - id: python
+    display_name: "Python"
+    description: "Python"
+    file: python/base.md
+`)},
+		"templates/10-language/python/base.md": &fstest.MapFile{Data: []byte("python base\n")},
+		"templates/10-language/python/10-type/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Program type"
+pick: single
+required: false
+options:
+  - id: cli
+    display_name: "CLI"
+    description: "CLI"
+    file: cli/
+`)},
+		"templates/10-language/python/10-type/cli/10-framework/_index.yaml": &fstest.MapFile{Data: []byte(`display_name: "Framework"
+pick: single
+required: false
+options:
+  - id: typer
+    display_name: "Typer"
+    description: "Typer"
+    file: typer.md
+`)},
+		"templates/10-language/python/10-type/cli/10-framework/typer.md": &fstest.MapFile{Data: []byte("typer\n")},
+	}
+	if _, err := load(fsys, "templates"); err != nil {
+		t.Fatalf("container option with file: <opt>/ (no base.md) should validate cleanly: %v", err)
 	}
 }
 

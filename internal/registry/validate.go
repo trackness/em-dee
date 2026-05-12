@@ -85,6 +85,18 @@ func validateCategoryTree(cat *Category, fsys fs.FS) []error {
 		return errs
 	}
 	errs = append(errs, validateContainer(cat, fsys)...)
+	// Per-subtree scope-collision check: within each container
+	// option's subtree, no sub-category's id may equal a sibling
+	// container's option id (in that same scope). The show resolver
+	// tries category-id match before falling back to elided-container
+	// option match; a collision would render the option unreachable
+	// via `<scope>.<id>`. v1's nested scopes are partitioned by their
+	// parent so collisions are rare, but the rule is mechanical and
+	// pinning it here prevents Dispatch 4's catalog migration from
+	// silently introducing one.
+	for _, opt := range cat.Options {
+		errs = append(errs, validateScopeIDCollisions(cat.Subcategories[opt.ID], cat.Path, opt.ID)...)
+	}
 	for _, opt := range cat.Options {
 		// The container's subtree lives at <cat.Path>/<opt.ID>. Its
 		// direct children must be NN-prefixed category folders (or,
@@ -96,9 +108,72 @@ func validateCategoryTree(cat *Category, fsys fs.FS) []error {
 				errs = append(errs, subErr...)
 			}
 		}
+		// Scope folder orphan-scan: a container-option subfolder
+		// holds at most a `base.md` plus NN-prefixed sub-categories.
+		// A stray `.md` here is not referenced by any `_index.yaml`
+		// and would silently never render. The language root has the
+		// same shape — handled by validateCategory's existing
+		// orphan-scan at cat.Path — but for nested containers
+		// (e.g. python/10-type/cli/) the option subfolder isn't a
+		// category folder, so this scan is its only defender.
+		errs = append(errs, validateScopeFolder(fsys, path.Join(cat.Path, opt.ID))...)
 		for _, sub := range cat.Subcategories[opt.ID] {
 			errs = append(errs, validateCategoryTree(sub, fsys)...)
 		}
+	}
+	return errs
+}
+
+// validateScopeIDCollisions reports a collision between a
+// sub-category's id and any inner-container's option id within the
+// same scope. `parentPath` and `parentOpt` name the enclosing
+// container/option for the error message so a violation points at
+// the specific scope rather than a generic name.
+func validateScopeIDCollisions(scope []*Category, parentPath, parentOpt string) []error {
+	var errs []error
+	catIDs := map[string]bool{}
+	for _, cat := range scope {
+		catIDs[cat.ID] = true
+	}
+	for _, cat := range scope {
+		if !cat.IsContainer {
+			continue
+		}
+		for _, opt := range cat.Options {
+			if catIDs[opt.ID] {
+				errs = append(errs, fmt.Errorf("%s: container option id %q in scope %s.%s collides with a sibling category id (would break show's disambiguation rule)", cat.Path, opt.ID, parentPath, parentOpt))
+			}
+		}
+	}
+	return errs
+}
+
+// validateScopeFolder rejects stray `.md` files at a container
+// option's subfolder root. The only `.md` file licensed at this
+// scope is `base.md` (governed by validateContainer's `file:` rule);
+// every other `.md` would be unreachable from the manifest.
+func validateScopeFolder(fsys fs.FS, dir string) []error {
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		// Missing subdirectory is reported elsewhere (the
+		// missing-file check in validateCategory). Other I/O errors
+		// are swallowed here for the same defensive reason —
+		// validateCategoryFolderNames also returns nil on read error.
+		return nil
+	}
+	var errs []error
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		if name == "base.md" {
+			continue
+		}
+		errs = append(errs, fmt.Errorf("%s: orphan .md file %s at container-option scope (only base.md is licensed at this level)", dir, name))
 	}
 	return errs
 }
@@ -187,27 +262,32 @@ func validateContainer(cat *Category, fsys fs.FS) []error {
 	return errs
 }
 
-// validateLanguageCategoryIDCollisions enforces "no language option id
-// equals any top-level category id" — the invariant the `em-dee show`
-// disambiguation rule depends on. Returns a slice of errors so the
-// caller can fold them into the joined error like the rest of the
-// hygiene checks.
+// validateLanguageCategoryIDCollisions enforces "no top-level
+// container option id equals any top-level category id" — the
+// invariant the `em-dee show` disambiguation rule depends on. The
+// resolver tries a category-id match first, then falls back to a
+// top-level container's option ids; a collision would make one of
+// the two reachable forms shadow the other silently.
+//
+// The function's name is historical (the only top-level container at
+// v1 is `language`); the check covers every top-level container. The
+// rule is identical at every depth via the generalised resolver but
+// only the top level needs explicit cross-category enforcement,
+// because nested ids are already partitioned by their parent scope.
 func validateLanguageCategoryIDCollisions(reg *Registry) []error {
 	var errs []error
-	var langCat *Category
 	topLevelIDs := map[string]bool{}
 	for _, cat := range reg.Categories {
 		topLevelIDs[cat.ID] = true
-		if cat.ID == LanguageCategoryID {
-			langCat = cat
+	}
+	for _, cat := range reg.Categories {
+		if !cat.IsContainer {
+			continue
 		}
-	}
-	if langCat == nil {
-		return nil
-	}
-	for _, opt := range langCat.Options {
-		if topLevelIDs[opt.ID] {
-			errs = append(errs, fmt.Errorf("%s: language option id %q collides with top-level category id %q (would break show's disambiguation rule)", langCat.Path, opt.ID, opt.ID))
+		for _, opt := range cat.Options {
+			if topLevelIDs[opt.ID] {
+				errs = append(errs, fmt.Errorf("%s: container option id %q collides with top-level category id %q (would break show's disambiguation rule)", cat.Path, opt.ID, opt.ID))
+			}
 		}
 	}
 	return errs
