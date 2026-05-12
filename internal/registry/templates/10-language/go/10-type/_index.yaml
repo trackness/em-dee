@@ -1,6 +1,7 @@
 display_name: "Go program type"
 pick: single
-required: true
+required: false
+default: cli
 options:
   - id: cli
     display_name: "CLI"
