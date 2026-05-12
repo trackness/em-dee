@@ -50,17 +50,18 @@ two-digit numeric prefix; that prefix dictates render order.
 - **Add a type under a language**: under
   `internal/registry/templates/10-language/<lang>/10-type/`, `mkdir
   <type>/`. Pick one of two mutually-exclusive shapes for the type's
-  entry in `10-type/_index.yaml` (the validator rejects mixing the
-  two — see §2.4 of CONTENT-STYLE.md):
+  entry in `10-type/_index.yaml`; the validator rejects mixing the
+  two (the declared `file:` must match the on-disk presence or
+  absence of `base.md`):
   - **With type-base discipline**: declare `file: <type>/base.md`
     and create `<type>/base.md`.
   - **Without type-base discipline**: declare `file: <type>/` (bare
     trailing slash) and do **NOT** create `<type>/base.md`.
-  Container categories follow the CONTENT-STYLE.md §2.4 rule: every
-  option in the same category must be the same shape (all leaf-`.md`
-  or all container-subdirectory). Add `<type>/<NN-sub-cat>/_index.yaml`
-  for each type-conditional sub-category and its `.md` option files.
-  Run `task verify`.
+  Every option in a single category must be the same shape — either
+  all leaf (`.md` files) or all container (subdirectories). Mixed
+  shapes are also rejected by the validator. Add
+  `<type>/<NN-sub-cat>/_index.yaml` for each type-conditional
+  sub-category and its `.md` option files. Run `task verify`.
 - **Add a new option to a type sub-category**: drop
   `internal/registry/templates/10-language/<lang>/10-type/<type>/<NN-sub-cat>/<id>.md`,
   append the entry to that folder's `_index.yaml`, run `task verify`.
