@@ -41,9 +41,24 @@ two-digit numeric prefix; that prefix dictates render order.
 - **Add a new language**: `mkdir
   internal/registry/templates/10-language/<id>/`, create `<id>/base.md`,
   add the language to `internal/registry/templates/10-language/_index.yaml`
-  with `file: <id>/base.md`, add nested sub-categories using the
-  top-level-category recipe. Note: the language id must not collide
-  with any top-level category id (the validator enforces this).
+  with `file: <id>/base.md`. Then add language-universal categories
+  via the top-level recipe, and add a `10-type/` container with type
+  subtrees via the next recipe. Note: the language id must not
+  collide with any top-level category id (the validator enforces
+  this).
+- **Add a type under a language**: under
+  `internal/registry/templates/10-language/<lang>/10-type/`, `mkdir
+  <type>/`, add an entry to `10-type/_index.yaml` with `file: <type>/`
+  (the trailing slash signals a container option pointing at a
+  subdirectory). Add `<type>/base.md` if the type has universal
+  discipline. Add `<type>/<NN-sub-cat>/_index.yaml` for each
+  type-conditional sub-category. Container categories follow the
+  CONTENT-STYLE.md §2.4 rule: a category's options are either all
+  leaf-shaped (file points at `.md`) or all container-shaped (file
+  points at subdirectory). Mixed shapes are rejected by the validator.
+- **Add a new option to a type sub-category**: same as the leaf-
+  category option recipe, but under
+  `internal/registry/templates/10-language/<lang>/10-type/<type>/<NN-sub-cat>/`.
 - **Reorder categories**: change the folder's `NN-` prefix. Do NOT
   edit `options` list order to reorder.
 - **Update render output for a changed template**: edit the `.md`,
@@ -89,7 +104,11 @@ two-digit numeric prefix; that prefix dictates render order.
 - **PR review** by the `trackness-agents:pr-reviewer` subagent before
   merge. Every review comment is addressed on the branch — either
   the fix is pushed, or a reasoned reply is posted explaining why
-  the suggestion is YAGNI / out-of-scope. No dismissal.
+  the suggestion is YAGNI / out-of-scope. **No dismissal, including
+  nits.** Loop until clean: after fixes land, re-dispatch the
+  reviewer; repeat until the reviewer approves without further
+  findings.
+- **Subagent dispatches always use `model: opus`.** No exceptions.
 - **Squash merge** to keep `main` history one commit per logical
   change. Feature branches preserved on origin (`--delete-branch=false`).
 - Use `gh` for GitHub-side operations (PR open, PR review, PR merge,
