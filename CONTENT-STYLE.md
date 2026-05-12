@@ -271,12 +271,14 @@ skip it until demand surfaces.
 Go's tooling space is largely settled. `gofmt`, `golangci-lint`,
 `go mod`, and `go test` are defaults pinned in `go/base.md`, not
 their own categories — they fail the category-design test because
-there is no real competition.
+there is no real competition. Testing discipline sits in `go/base.md`
+alongside them: `go test` is the only framework em-dee endorses for
+new Go projects. `testify` and `ginkgo` are excluded — name them
+under **Excluded** in `go/base.md`.
 
 Go categories at v1:
 
 - `20-logging/` — `slog` default, `zap` alternate.
-- `30-testing/` — `go-test`.
 
 Go program types under `go/10-type/`:
 
