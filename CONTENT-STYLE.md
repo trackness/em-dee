@@ -151,13 +151,21 @@ left as empty headings.
   rationale when the choice is non-obvious.
 - A bulleted list of rules governing use — invariants, conventions,
   idioms the downstream session must follow.
-- **Opt-in** / **When opted in** / **Hard constraints** sub-sections
-  for any per-repo alternate that the block permits. State the
-  alternate, the conditions under which it's appropriate, and the
-  constraints that apply when it's chosen.
+- **Opt-in:** any per-repo alternate the block permits. Name the
+  alternate; do not mix conditions or constraints into this section.
+- **When opted in:** the conditions under which the alternate is
+  appropriate. A downstream session reading the rendered block uses
+  this to decide whether the opt-in applies to its project.
+- **Hard constraints:** the rules that bind when the alternate is
+  chosen. Distinct from the default's rule list — these only fire
+  under the opt-in.
 - **Excluded:** packages or patterns ruled out. Include a reason when
   the exclusion is technical (security, performance, abandonment).
   Bare names suffice when the reason is "picked one in this space."
+
+These three sub-sections (Opt-in / When opted in / Hard constraints)
+appear together as discrete headings in that order. A block with no
+permitted alternate drops all three.
 
 ### 4.2 Per-block targets
 
@@ -201,7 +209,7 @@ their own categories. They are language discipline, not pick-points.
   - Never log secret values, including in error messages.
   - File permissions `0600` on any secret-bearing config file.
   - No secrets in user-facing error messages.
-  
+
   Language-specific idioms (e.g. `pydantic-settings` `SecretStr`)
   appear in the relevant category block; the principles do not move.
 - **Dependency hygiene.** Manifest discipline (`go.mod`,
@@ -218,9 +226,7 @@ Decisions for the Python language tree. These are settled; do not
 relitigate when drafting Python blocks.
 
 - **Package manager.** `uv` is the default. `poetry` and `pip-tools`
-  are alternates a project explicitly opts into. Path:
-  `python/<NN>-package-manager/uv.md`, `…/poetry.md`,
-  `…/pip-tools.md`.
+  are alternates a project explicitly opts into.
 - **Linter.** `ruff` is the default. The baseline configuration is
   `select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]`,
   `target-version = "py312"`, `line-length = 150`. Do **not** set
@@ -230,7 +236,12 @@ relitigate when drafting Python blocks.
   point — call out the divergence explicitly in the linter block.
 - **Type checker.** `ty` (Astral's) as default. `mypy` and `pyright`
   as alternates.
-- **Testing.** `pytest`.
+- **Testing.** `pytest` as default, its own category. The choice
+  surface that justifies category status is the testing *stack*
+  picked alongside the framework — `pytest-httpserver`, `pytest-mock`,
+  `pytest-cov` ride along by default; alternates that drop or swap
+  pieces of that stack are real picks. `unittest` is excluded for
+  new projects.
 - **Logging.** `loguru` as default. stdlib `logging` as alternate.
   `none` is not an option for new projects.
 - **Pydantic.** Foundational, lives in `python/base.md`, not as a
