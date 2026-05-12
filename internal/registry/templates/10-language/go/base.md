@@ -1,4 +1,4 @@
-<!-- TODO: real content for language=go -->
+<!-- TODO: real content for language.go -->
 
 ## Go
 

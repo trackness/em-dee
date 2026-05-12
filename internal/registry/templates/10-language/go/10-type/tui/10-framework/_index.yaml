@@ -1,0 +1,13 @@
+display_name: "Go TUI framework"
+pick: single
+required: false
+default: bubbletea
+options:
+  - id: bubbletea
+    display_name: "Bubble Tea"
+    description: "Bubble Tea TUI framework."
+    file: bubbletea.md
+  - id: tview
+    display_name: "tview"
+    description: "tview TUI framework."
+    file: tview.md

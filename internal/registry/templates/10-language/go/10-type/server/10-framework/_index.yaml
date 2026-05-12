@@ -1,4 +1,4 @@
-display_name: "Go framework"
+display_name: "Go server framework"
 pick: single
 required: false
 default: stdlib-net-http

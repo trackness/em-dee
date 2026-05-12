@@ -1,0 +1,17 @@
+display_name: "Go CLI framework"
+pick: single
+required: false
+default: cobra
+options:
+  - id: cobra
+    display_name: "Cobra"
+    description: "Cobra CLI framework."
+    file: cobra.md
+  - id: kong
+    display_name: "Kong"
+    description: "Kong CLI framework."
+    file: kong.md
+  - id: urfave-cli
+    display_name: "urfave/cli"
+    description: "urfave/cli framework."
+    file: urfave-cli.md

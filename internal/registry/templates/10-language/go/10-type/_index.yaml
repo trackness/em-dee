@@ -1,0 +1,20 @@
+display_name: "Go program type"
+pick: single
+required: true
+options:
+  - id: cli
+    display_name: "CLI"
+    description: "Command-line program invoked from a terminal."
+    file: cli/base.md
+  - id: server
+    display_name: "Server"
+    description: "Long-lived process serving HTTP."
+    file: server/base.md
+  - id: tui
+    display_name: "TUI"
+    description: "Terminal user-interface application."
+    file: tui/base.md
+  - id: library
+    display_name: "Library"
+    description: "Importable Go module."
+    file: library/base.md
