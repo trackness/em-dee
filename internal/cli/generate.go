@@ -181,56 +181,129 @@ func runGenerate(cmd *cobra.Command, reg *registry.Registry, flags *generateFlag
 	return finishGenerate(cmd, reg, picks, flags, opts)
 }
 
-// runInteractive drives the two-phase huh flow: form 1 resolves the
-// language, ApplyDefaults seeds form 2's bindings, form 2 collects the
-// rest plus a confirm group. Returns the final Picks or an error
-// (notably tui.ErrCancelled on user abort or No-on-confirm).
+// runInteractive drives the multi-phase huh flow under Dispatch 3's
+// three-level-capable schema:
 //
-// useDefaults=true skips form 2 entirely: form 1 still runs (the
-// language category has no default), then ApplyDefaults fills in the
-// rest. This matches the "prompt only for language" contract.
+//  1. RunLanguageForm — always runs (language category has no default).
+//  2. RunTypeForm — runs iff the chosen language has a container
+//     sub-category (e.g. `python/10-type/`). Returns "" when no
+//     container exists; the production catalog hits that path today.
+//  3. ApplyDefaults — seeds the rest from registry defaults.
+//  4. RunScopeForm — runs unless --use-defaults short-circuits.
 //
-// UX tradeoff (PR #5 review L2): the useDefaults=true path commits the
-// file immediately after the language pick — no confirm group, no
-// preview of what's about to be written. This is intentional ("prompt
-// only for language"); the safety net is the existing-file rule, which
-// still rejects a write over an existing CLAUDE.md without --force. If
-// users report the no-preview UX as sharp in practice, the v2 move is
-// to surface the render-order summary as a final-line confirmation
-// before the write rather than re-adding the confirm group (which
-// would put us on the path to ignoring --use-defaults).
+// Returns the final Picks or an error (notably tui.ErrCancelled on
+// user abort or No-on-confirm).
+//
+// `--use-defaults` rule (documented contract):
+//
+//   - phase 1 always runs (language is required, no default).
+//   - phase 2 (type form) runs iff the container category has no
+//     usable default. The container's `required:` and `default:`
+//     drive the test: if a default is present, accept it silently; if
+//     not, surface the prompt regardless of --use-defaults so the user
+//     gets to express the type-conditional pick once. (Type-conditional
+//     content has no sensible silent default — guessing "every project
+//     is a CLI" is the wrong shape.) Cancellation in phase 2 maps the
+//     same way as phase 1: ErrCancelled bubbles up.
+//   - phase 3 (scope form) is skipped under --use-defaults.
+//
+// UX tradeoff (preserved from PR #5 review L2 and revisited under
+// Dispatch 3): the --use-defaults path commits the file immediately
+// after the last interactive phase — no confirm group, no preview of
+// what's about to be written. The safety net is the existing-file
+// rule, which still rejects a write over an existing CLAUDE.md
+// without --force. If users report the no-preview UX as sharp in
+// practice, the v2 move is to surface the render-order summary as a
+// final-line confirmation before the write rather than re-adding the
+// confirm group (which would put us on the path to ignoring
+// --use-defaults).
 func runInteractive(reg *registry.Registry, useDefaults bool) (registry.Picks, error) {
 	lang, err := tui.RunLanguageForm(reg)
 	if err != nil {
 		return registry.Picks{}, err
 	}
 
-	// Seed Picks with the chosen language and apply defaults so
-	// form 2's bound variables start pre-populated.
-	//
-	// Ordering constraint (load-bearing): the language pick MUST be
-	// seeded into picks before ApplyDefaults is called. ApplyDefaults
-	// walks the chosen language's sub-category subtree only when
-	// `picks.Values[LanguageCategoryID]` is already set (see
-	// registry/defaults.go's chosenLang lookup). Moving the seed line
-	// below the ApplyDefaults call would silently drop every
-	// language-nested default from the `--use-defaults` interactive
-	// path — the form-2 sub-category bindings would come back empty
-	// and the user would see no pre-populated selections. The
-	// non-interactive path doesn't hit this because `--language` is
-	// parsed into the selection map before ResolveSelection runs;
-	// only the interactive path has the seed-then-default ordering
-	// exposed.
+	// Seed picks with the language pick, then apply defaults so any
+	// container category under the language has its default cell
+	// filled. Ordering constraint (load-bearing): the language pick
+	// MUST be in picks before ApplyDefaults so the chosen-language
+	// sub-tree's defaults flow — see registry/defaults.go's
+	// container-descent logic. Applying defaults BEFORE phase 2 is the
+	// new wrinkle: it gives the type form a seeded binding so the
+	// huh.Select lands on the registry default rather than the first
+	// option (huh v2 first-option pre-fill quirk).
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(lang)
 	picks = registry.ApplyDefaults(picks, reg)
 
+	// Phase 2: type pick when a container sub-category exists.
+	typeID, containerID, ranTypeForm, err := runTypePhase(reg, lang, picks, useDefaults)
+	if err != nil {
+		return registry.Picks{}, err
+	}
+	if ranTypeForm && typeID != "" && containerID != "" {
+		// The user expressed a type pick. Seed it into picks (it may
+		// be the same as the default or different) and re-apply
+		// defaults so the chosen option's subtree's defaults populate
+		// (the prior ApplyDefaults walked only the default-option's
+		// subtree; a different chosen option needs a second pass).
+		picks.Values[lang+"."+containerID] = registry.NewSingle(typeID)
+		picks = registry.ApplyDefaults(picks, reg)
+	}
+
 	if useDefaults {
-		// --use-defaults: skip form 2, return the defaulted Picks.
 		return picks, nil
 	}
 
-	return tui.RunSecondaryForm(reg, lang, picks)
+	// Resolve the effective typeID for phase 3 from picks (covers
+	// both the "user picked" and the "ApplyDefaults filled" cases).
+	effectiveType := ""
+	if containerID != "" {
+		if v := picks.Values[lang+"."+containerID]; v != nil && v.Single != nil {
+			effectiveType = *v.Single
+		}
+	}
+
+	return tui.RunScopeForm(reg, lang, effectiveType, picks)
+}
+
+// runTypePhase is the phase-2 helper extracted from runInteractive so
+// the --use-defaults short-circuit logic is readable in one place.
+// Returns (typeID, containerID, ranTypeForm, err):
+//
+//   - containerID is the id of the container sub-category under the
+//     language (e.g. `type`); empty when no container exists.
+//   - typeID is the chosen container-option id; only valid when
+//     ranTypeForm is true.
+//   - ranTypeForm reports whether the type form actually ran (or was
+//     short-circuited via the useDefaults+default path).
+//   - err is non-nil on hard failure or user cancellation (ErrCancelled
+//     wrapped via tui).
+//
+// The short-circuit rule (documented contract): when useDefaults is
+// set AND the container has a default, we don't prompt — the prior
+// ApplyDefaults already populated the cell from the registry default.
+// When useDefaults is set AND the container has no default, we prompt
+// anyway — the contract is "skip everything except the picks you
+// genuinely can't infer from defaults", and a no-default container is
+// by construction the second case.
+//
+// `initial` is the current picks state, used to seed the type form's
+// bound pointer so the highlighted option matches what's already in
+// picks (typically the registry default after ApplyDefaults has run).
+func runTypePhase(reg *registry.Registry, lang string, initial registry.Picks, useDefaults bool) (string, string, bool, error) {
+	container := tui.FindContainerSub(reg, lang)
+	if container == nil {
+		return "", "", false, nil
+	}
+	if useDefaults && container.DefaultSingle != "" {
+		return "", container.ID, false, nil
+	}
+	typeID, err := tui.RunTypeForm(reg, lang, initial)
+	if err != nil {
+		return "", container.ID, false, err
+	}
+	return typeID, container.ID, true, nil
 }
 
 // finishGenerate is the shared tail of both the interactive and
