@@ -141,7 +141,7 @@ func TestList_ThreeLevel_RendersTree(t *testing.T) {
 		t.Fatalf("missing one of the expected category headers (framework=%d, consumer=%d):\n%s",
 			frameworkIdx, consumerIdx, out)
 	}
-	if !(frameworkIdx < consumerIdx) {
+	if frameworkIdx >= consumerIdx {
 		t.Errorf("sub-categories must render in NN-prefix order (framework before consumer); got framework@%d, consumer@%d\n---\n%s",
 			frameworkIdx, consumerIdx, out)
 	}
