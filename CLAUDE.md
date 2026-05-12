@@ -147,7 +147,7 @@ minor/major version bump.
 
 | Command                       | Purpose                                                                                                                                                       |
 |-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `em-dee` / `em-dee generate`  | Build a CLAUDE.md. Interactive on a TTY; non-interactive needs `--language=<id>` plus `--use-defaults` (or explicit picks via interactive on a forced TTY).   |
+| `em-dee` / `em-dee generate`  | Build a CLAUDE.md. Interactive on a TTY; non-interactive needs `--language=<id>` (every other category falls back to its registry default).                  |
 | `em-dee list [--json]`        | Print the catalog tree.                                                                                                                                       |
 | `em-dee show <ref>`           | Print one block's `.md` content. Refs are dotted (`python.cli.framework.typer`, `infra.docker`); containers are elided.                                       |
 | `em-dee version [--json]`     | Print embedded build version, commit, and date.                                                                                                               |
@@ -155,8 +155,8 @@ minor/major version bump.
 
 Category selection: `--language=<id>` is the only flag that picks a
 category option. Every other category is picked through the
-interactive form (or accepted as the registry default via
-`--use-defaults`).
+interactive form, or — when no interactive form runs — filled in
+from its registry default automatically.
 
 Behaviour flags on `em-dee generate`:
 
@@ -165,8 +165,10 @@ Behaviour flags on `em-dee generate`:
   backed up to `<out>.bak.<unix-ts>` in the same directory).
 - `--dry-run` — write rendered output to stdout instead of disk;
   skips the existing-file check and skips the Claude review.
-- `--use-defaults` — accept the registry default for every category
-  except `--language` (still required on a non-TTY).
+- `--use-defaults` — in the interactive flow, skip form 2 (the
+  non-language picks) and silently accept registry defaults. On the
+  non-interactive path (`--language=<id>` supplied without a TTY)
+  defaults are filled automatically; this flag is a no-op there.
 - `--review` / `--no-review` — toggle the post-write Claude review
   (default on).
 - `--review-out=<path>` — write the parsed review JSON to disk.
