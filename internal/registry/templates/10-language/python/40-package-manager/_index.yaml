@@ -1,4 +1,4 @@
-display_name: "Python dependency management"
+display_name: "Python package manager"
 pick: single
 required: false
 default: uv

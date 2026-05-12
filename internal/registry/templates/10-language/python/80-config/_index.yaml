@@ -1,0 +1,21 @@
+display_name: "Python configuration"
+pick: single
+required: false
+default: pydantic-settings
+options:
+  - id: pydantic-settings
+    display_name: "pydantic-settings"
+    description: "pydantic-settings for typed configuration."
+    file: pydantic-settings.md
+  - id: dynaconf
+    display_name: "Dynaconf"
+    description: "Dynaconf configuration framework."
+    file: dynaconf.md
+  - id: hydra
+    display_name: "Hydra"
+    description: "Hydra configuration framework."
+    file: hydra.md
+  - id: stdlib-only
+    display_name: "stdlib-only"
+    description: "argparse plus os.environ; no third-party config dep."
+    file: stdlib-only.md

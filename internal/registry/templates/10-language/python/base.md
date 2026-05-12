@@ -1,4 +1,4 @@
-<!-- TODO: real content for language=python -->
+<!-- TODO: real content for language.python -->
 
 ## Python
 

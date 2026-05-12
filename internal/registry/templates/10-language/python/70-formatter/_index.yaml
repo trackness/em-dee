@@ -1,0 +1,13 @@
+display_name: "Python formatter"
+pick: single
+required: false
+default: ruff-format
+options:
+  - id: ruff-format
+    display_name: "Ruff format"
+    description: "Ruff's formatter (Astral)."
+    file: ruff-format.md
+  - id: black
+    display_name: "Black"
+    description: "Black formatter."
+    file: black.md

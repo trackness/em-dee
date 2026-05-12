@@ -3,15 +3,11 @@ pick: single
 required: false
 default: loguru
 options:
-  - id: stdlib
-    display_name: "logging (stdlib)"
-    description: "Standard library logging module."
-    file: stdlib.md
   - id: loguru
     display_name: "Loguru"
     description: "Loguru, batteries-included logger."
     file: loguru.md
-  - id: structlog
-    display_name: "structlog"
-    description: "structlog, structured logging for Python."
-    file: structlog.md
+  - id: stdlib
+    display_name: "logging (stdlib)"
+    description: "Standard library logging module."
+    file: stdlib.md

@@ -1,4 +1,4 @@
-<!-- TODO: real content for python.logging=stdlib -->
+<!-- TODO: real content for python.logging.stdlib -->
 
 ## logging (stdlib)
 

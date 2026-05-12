@@ -1,4 +1,4 @@
-display_name: "Python framework"
+display_name: "Python server framework"
 pick: single
 required: false
 default: fastapi

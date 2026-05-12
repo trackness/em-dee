@@ -1,0 +1,13 @@
+display_name: "Python CLI framework"
+pick: single
+required: false
+default: typer
+options:
+  - id: typer
+    display_name: "Typer"
+    description: "Typer CLI framework."
+    file: typer.md
+  - id: click
+    display_name: "Click"
+    description: "Click CLI framework."
+    file: click.md

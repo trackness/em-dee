@@ -1,0 +1,20 @@
+display_name: "Python program type"
+pick: single
+required: true
+options:
+  - id: cli
+    display_name: "CLI"
+    description: "Command-line program invoked from a terminal."
+    file: cli/base.md
+  - id: server
+    display_name: "Server"
+    description: "Long-lived process serving HTTP."
+    file: server/base.md
+  - id: library
+    display_name: "Library"
+    description: "Importable library published to PyPI."
+    file: library/base.md
+  - id: iac
+    display_name: "Infrastructure-as-code"
+    description: "Declarative infrastructure-as-code program."
+    file: iac/base.md
