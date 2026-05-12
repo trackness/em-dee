@@ -38,20 +38,30 @@ type Option struct {
 // Pick == PickMulti, Default is a list of option IDs. The empty string
 // / nil Default means "no default".
 //
-// Subcategories is populated only for the top-level `language`
-// category: it maps a language option ID to that language's ordered
-// list of sub-categories (10-framework, 20-logging, …). All other
-// categories carry a nil Subcategories.
+// IsContainer marks the category as a *container* category in the
+// generalised three-level-capable schema (CONTENT-STYLE.md §2.3, §2.4):
+// a container's options point at subdirectories rather than `.md`
+// files, and each option's subtree holds further categories. The
+// language category is the canonical example today (its options point
+// at `<lang>/base.md`); after Dispatch 4 the per-language `10-type/`
+// folder is the second container. A non-container category is a
+// *leaf* — its options point at flat `.md` files in the same folder.
+//
+// Subcategories is populated only when IsContainer is true: it maps a
+// container option ID to that option's ordered list of sub-categories
+// (each itself a Category that may, recursively, be another container).
+// Non-container categories carry a nil Subcategories.
 type Category struct {
 	Path          string
 	ID            string // last segment of Path with the NN- prefix stripped
 	DisplayName   string
 	Pick          Pick
 	Required      bool
+	IsContainer   bool                   // true when options point at subdirectories with their own _index.yaml trees
 	DefaultSingle string                 // populated when Pick == PickSingle and a default is set; empty string = no default
 	DefaultMulti  []string               // populated when Pick == PickMulti and a default is set; nil or empty slice = no default
 	Options       []Option               // declaration order from `_index.yaml`
-	Subcategories map[string][]*Category // language-only: keyed by language option ID
+	Subcategories map[string][]*Category // populated when IsContainer is true; keyed by chosen option ID
 }
 
 // Registry is the root view of the templates filesystem in render

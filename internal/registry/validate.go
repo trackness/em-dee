@@ -42,7 +42,7 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 	// `NN-language` folder prefix is owned by parseIndex's
 	// stripPrefix and never re-encoded here.
 	for _, cat := range reg.Categories {
-		errs = append(errs, validateCategory(cat, fsys)...)
+		errs = append(errs, validateCategoryTree(cat, fsys)...)
 		if cat.ID == LanguageCategoryID {
 			errs = append(errs, validateLanguageCategory(cat)...)
 			// Children of the language root are language-id folders
@@ -52,7 +52,8 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 				errs = append(errs, subErr...)
 			}
 			// Language subtrees: each language sub-folder must
-			// contain a base.md + its own per-language categories.
+			// contain a base.md (the required language-base position
+			// per CONTENT-STYLE.md §2.7).
 			for _, opt := range cat.Options {
 				langDir := path.Join(cat.Path, opt.ID)
 				if _, err := fs.Stat(fsys, path.Join(langDir, "base.md")); err != nil {
@@ -63,14 +64,39 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 				if subErr := validateCategoryFolderNames(fsys, langDir); subErr != nil {
 					errs = append(errs, subErr...)
 				}
-				for _, sub := range cat.Subcategories[opt.ID] {
-					errs = append(errs, validateCategory(sub, fsys)...)
-				}
 			}
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateCategoryTree runs validateCategory on `cat` and, when `cat`
+// is a container, recurses through every option's subtree applying
+// the same rules at every depth. Container subtree folders must
+// themselves follow the NN-name folder convention (every category
+// folder at every depth obeys section 3 of CONTENT-STYLE.md).
+func validateCategoryTree(cat *Category, fsys fs.FS) []error {
+	errs := validateCategory(cat, fsys)
+	if !cat.IsContainer {
+		return errs
+	}
+	for _, opt := range cat.Options {
+		// The container's subtree lives at <cat.Path>/<opt.ID>. Its
+		// direct children must be NN-prefixed category folders (or,
+		// for the language container specifically, language-id
+		// folders — see validateLanguageFolderNames above).
+		if cat.ID != LanguageCategoryID {
+			optDir := path.Join(cat.Path, opt.ID)
+			if subErr := validateCategoryFolderNames(fsys, optDir); subErr != nil {
+				errs = append(errs, subErr...)
+			}
+		}
+		for _, sub := range cat.Subcategories[opt.ID] {
+			errs = append(errs, validateCategoryTree(sub, fsys)...)
+		}
+	}
+	return errs
 }
 
 // validateLanguageCategoryIDCollisions enforces "no language option id
