@@ -224,10 +224,14 @@ tests are the only consumer.
 
 ## Templates filesystem
 
-`internal/registry/templates/` carries the catalog. Every option's
-`.md` block is currently a TODO stub — a TODO HTML comment plus a
-one-line placeholder summary, NOT a zero-byte file (the validator
-rejects those). Finalised content lands per language. The
-render-package tests use a separate fixture tree at
-`internal/render/testdata/templates/` so they're independent of
-catalog content drift.
+`internal/registry/templates/` carries the catalog. Block content
+lands per language; the Go subtree's primary blocks (`go/base.md`,
+`go/20-logging/slog.md`, `go/10-type/cli/{base.md,10-framework/cobra.md,20-consumer/{agent,human,mixed}.md}`,
+`go/10-type/tui/{base.md,10-framework/bubbletea.md}`,
+`go/10-type/library/base.md`) carry finalised content. Remaining
+options — Python catalog, Go alternates (`zap`, `kong`, `urfave-cli`,
+`tview`), Go server type — are still TODO stubs: a TODO HTML comment
+plus a one-line placeholder summary, NOT a zero-byte file (the
+validator rejects those). The render-package tests use a separate
+fixture tree at `internal/render/testdata/templates/` so they're
+independent of catalog content drift.
