@@ -63,7 +63,7 @@ func Render(reg *registry.Registry, picks registry.Picks) ([]byte, error) {
 
 // renderLanguage emits the language base.md plus each nested
 // sub-category's chosen blocks, in sub-category folder-prefix order.
-// If no language is chosen (unset or explicit-none), nothing is
+// If no language is chosen (Value nil or empty Single), nothing is
 // emitted — including no sub-category content, because the subtree
 // only makes sense once a language anchors it.
 func renderLanguage(reg *registry.Registry, langCat *registry.Category, picks registry.Picks) ([][]byte, error) {
@@ -96,10 +96,13 @@ func renderLanguage(reg *registry.Registry, langCat *registry.Category, picks re
 }
 
 // renderCategory emits the chosen block(s) for one category. Returns
-// nil (no blocks) for unset / explicit-none. For multi-pick, options
-// are emitted in manifest declaration order regardless of the order
-// the caller wrote them in `picks` — the determinism rule, locked in
-// by TestRender_MultiPickDeterminism.
+// nil (no blocks) when the cell carries no option ids — whether the
+// value is absent, nil, or a non-nil pointer to an empty value (the
+// last shape isn't reachable through the public API after Dispatch 1
+// but the renderer stays defensive). For multi-pick, options are
+// emitted in manifest declaration order regardless of the order the
+// caller wrote them in `picks` — the determinism rule, locked in by
+// TestRender_MultiPickDeterminism.
 func renderCategory(reg *registry.Registry, cat *registry.Category, v *registry.Value) ([][]byte, error) {
 	if v == nil {
 		return nil, nil // unset
@@ -108,7 +111,7 @@ func renderCategory(reg *registry.Registry, cat *registry.Category, v *registry.
 	switch cat.Pick {
 	case registry.PickSingle:
 		if v.Single == nil || *v.Single == "" {
-			return nil, nil // explicit-none
+			return nil, nil
 		}
 		b, err := reg.OptionBlock(cat, *v.Single)
 		if err != nil {
@@ -118,7 +121,7 @@ func renderCategory(reg *registry.Registry, cat *registry.Category, v *registry.
 
 	case registry.PickMulti:
 		if v.Multi == nil || len(*v.Multi) == 0 {
-			return nil, nil // explicit-none
+			return nil, nil
 		}
 		chosen := map[string]bool{}
 		for _, id := range *v.Multi {

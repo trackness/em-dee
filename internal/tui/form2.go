@@ -31,12 +31,14 @@ type SecondaryForm struct {
 	// singles maps the selection-key (top-level cat id or
 	// `lang.sub` dotted form) to the bound *string. After Run() the
 	// pointer holds the chosen option id, or "" if the user accepted
-	// no-default explicit-empty.
+	// an empty default (which Picks() then omits from the output map
+	// so ApplyDefaults can fill from the registry default).
 	singles map[string]*string
 
 	// multis maps the selection-key to the bound *[]string. After
-	// Run() the slice holds the chosen option ids; an empty slice
-	// means "explicit none."
+	// Run() the slice holds the chosen option ids; an empty slice is
+	// treated the same as "unset" — Picks() omits the entry and
+	// ApplyDefaults fills from the registry default if one exists.
 	multis map[string]*[]string
 
 	// confirmed is the bound *bool for the final confirm group.
@@ -256,30 +258,15 @@ func (sf *SecondaryForm) summarise(reg *registry.Registry) string {
 // MultiSelect doesn't have this quirk — an empty bound stays empty.
 // So an untouched MultiSelect comes back as nil/empty here and is
 // omitted from Picks, letting ApplyDefaults fill in the registry
-// default. This matches the "optional categories without a default
-// present an empty selection state" intent for multi-pick, and
-// approximates it as closely as huh v2 allows for single-pick.
+// default.
 //
-// Tradeoff vs. the flag layer: the flag layer treats `--infra=` as
-// explicit-empty, but the interactive flow has no natural keystroke
-// for "explicit empty" — leaving a MultiSelect untouched and one
-// that the user deliberately cleared look the same to huh. Forcing
-// them apart would mean adding a sentinel option, which complicates
-// the UI for no v1 benefit.
-//
-// Tri-state interaction (PR #5 review L3): the registry has three
-// states — unset, explicit-empty, chosen. The interactive path can
-// only express two of them via this translation: a non-empty
-// MultiSelect maps to "chosen" and an empty MultiSelect maps to
-// "unset" (omitted from Picks, ApplyDefaults fills the registry
-// default). The "explicit-empty" state (defeating the default for a
-// multi-pick) is reachable only from the flag layer (`--<cat>=`) —
-// interactive users who want zero blocks from a defaulted multi-pick
-// must exit and re-run with the empty flag. This was a v1 scope
-// call (no sentinel "explicit none" option to keep the UI simple);
-// whether v2 should expose this in the interactive flow is a future
-// question. The flag layer remains the canonical surface for
-// explicit-empty.
+// API contract (post Dispatch 1): Picks is a binary {unset | set}
+// per category, not a tri-state with a distinct "explicit empty"
+// cell. An empty single-pick or empty multi-pick from the form maps
+// to "unset" by omission from the output map — there is no way for a
+// caller to assert "the user explicitly chose nothing." Defeating a
+// registry default deliberately is not a v1 surface; the simplest
+// path for a user is to edit the generated CLAUDE.md after the fact.
 func (sf *SecondaryForm) Picks() registry.Picks {
 	picks := registry.NewPicks()
 	picks.Values[registry.LanguageCategoryID] = registry.NewSingle(sf.langID)

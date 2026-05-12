@@ -3,9 +3,14 @@ package registry
 // ApplyDefaults returns a new Picks with each unset category filled
 // from the registry's `default`. The contract:
 //
-//   - nil pointer (unset) → fill with default if one exists.
-//   - non-nil pointer to empty value (explicit-none) → leave alone.
-//   - non-nil pointer to non-empty value (chosen) → leave alone.
+//   - nil pointer (unset, or map-absent) → fill with default if one
+//     exists.
+//   - any non-nil pointer (the user expressed a value, even an empty
+//     one) → leave alone. The "explicit empty defeats the default"
+//     state is no longer reachable through the public API (Dispatch 1
+//     collapse), but defensively leaving non-nil values untouched
+//     keeps the function shape simple and avoids surprising any caller
+//     that hand-constructs Picks via NewSingle("")/NewMulti(nil).
 //
 // The function is pure: it deep-copies the input map so the caller's
 // Picks is unchanged. Language-nested categories are only considered
@@ -55,15 +60,14 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 
 // fillIfUnset writes the registry default into `out[key]` only if
 // `out[key]` is "unset". "Unset" means **nil pointer** — which covers
-// both map-absent AND map-present-with-nil-value. Explicit-none values
-// (non-nil pointer to an empty value) are left alone. The
-// map-present-nil case can arise from generic merge helpers or from
-// cloneValue of a nil entry; treating it the same as map-absent keeps
-// the contract unambiguous for downstream render/CLI consumers.
+// both map-absent AND map-present-with-nil-value. Any non-nil *Value
+// is left alone, on the principle that the caller spoke for itself.
+// The map-present-nil case can arise from generic merge helpers or
+// from cloneValue of a nil entry; treating it the same as map-absent
+// keeps the contract unambiguous for downstream render/CLI consumers.
 func fillIfUnset(out Picks, key string, cat *Category) {
 	if v, ok := out.Values[key]; ok && v != nil {
-		// Already present and non-nil (chosen or explicit-none) —
-		// leave alone.
+		// Already present and non-nil — leave alone.
 		return
 	}
 	switch cat.Pick {

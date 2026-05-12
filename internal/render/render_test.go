@@ -91,25 +91,6 @@ func TestRender_OptionalUnsetCategoriesSkipped(t *testing.T) {
 	}
 }
 
-// TestRender_OptionalExplicitlyEmptySkipped: language + python.logging
-// set to explicit-none. python.logging block should not appear.
-func TestRender_OptionalExplicitlyEmptySkipped(t *testing.T) {
-	t.Parallel()
-
-	reg := fixtureRegistry(t)
-	picks := registry.NewPicks()
-	picks.Values["language"] = registry.NewSingle("python")
-	picks.Values["python.logging"] = registry.NewSingle("") // explicit-none
-
-	got, err := Render(reg, picks)
-	if err != nil {
-		t.Fatalf("Render returned error: %v", err)
-	}
-	if bytes.Contains(got, []byte("loguru block.")) || bytes.Contains(got, []byte("stdlib block.")) {
-		t.Errorf("logging block appeared despite explicit-none:\n%s", got)
-	}
-}
-
 // TestRender_MultiPick: two options selected; both emitted in
 // manifest order, separated by \n\n.
 func TestRender_MultiPick(t *testing.T) {

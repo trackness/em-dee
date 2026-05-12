@@ -95,31 +95,6 @@ func TestApplyDefaults_UnsetFilledFromDefault(t *testing.T) {
 	}
 }
 
-// TestApplyDefaults_ExplicitNonePreserved: an explicit-empty Picks
-// value (non-nil pointer, empty value) is left alone.
-func TestApplyDefaults_ExplicitNonePreserved(t *testing.T) {
-	t.Parallel()
-
-	picks := NewPicks()
-	picks.Values["language"] = NewSingle("python")
-	// Explicit-none on python.framework
-	empty := ""
-	picks.Values["python.framework"] = &Value{Single: &empty}
-	// Explicit-none on infra (non-nil empty slice).
-	picks.Values["infra"] = NewMulti(nil)
-
-	out := ApplyDefaults(picks, testRegistry())
-
-	got := out.Values["python.framework"]
-	if got == nil || got.Single == nil || *got.Single != "" {
-		t.Errorf("python.framework expected explicit-empty, got %+v", got)
-	}
-	infra := out.Values["infra"]
-	if infra == nil || infra.Multi == nil || len(*infra.Multi) != 0 {
-		t.Errorf("infra expected explicit-empty, got %+v", infra)
-	}
-}
-
 // TestApplyDefaults_ChosenPreserved: a chosen value isn't overwritten
 // by the default.
 func TestApplyDefaults_ChosenPreserved(t *testing.T) {

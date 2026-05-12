@@ -69,25 +69,35 @@ type Registry struct {
 	fsys fs.FS
 }
 
-// Value is the tri-state per-category selection cell used inside
-// Picks. Exactly one of Single or Multi is non-nil, matching the
-// owning category's Pick. Nil pointer = "unset" (default-eligible);
-// non-nil pointer to an empty value = "explicit none" (default
-// suppressed); non-nil pointer to a non-empty value = "chosen".
+// Value is the per-category selection cell used inside Picks. Exactly
+// one of Single or Multi is non-nil, matching the owning category's
+// Pick. Nil *Value (or a Value with both fields nil) means "unset" —
+// ApplyDefaults will fill it from the registry's default. A non-nil
+// *Value carrying option ids means "the user chose these".
+//
+// Dispatch 1 collapsed the previous tri-state (unset / explicit-none /
+// chosen) to a binary at the API level: callers can no longer assert
+// "the user explicitly chose nothing." The internal resolver still
+// constructs a non-nil-pointer-to-empty cell when it sees an empty
+// input, and the renderer still treats that cell as "emit no block",
+// but neither shape is part of the contract exposed to flag, form, or
+// future config-file consumers — they always express selections as
+// either "absent from the map" or "this list of option ids".
 type Value struct {
 	Single *string
 	Multi  *[]string
 }
 
-// NewSingle constructs a Value holding a chosen single-pick option.
-// Pass "" to record an explicit-none.
+// NewSingle constructs a Value holding a single-pick selection.
 func NewSingle(id string) *Value {
 	v := id
 	return &Value{Single: &v}
 }
 
-// NewMulti constructs a Value holding a chosen multi-pick selection.
-// Pass nil or an empty slice to record an explicit-none.
+// NewMulti constructs a Value holding a multi-pick selection. A nil or
+// empty input produces a non-nil pointer to an empty slice; the
+// renderer treats this the same as "unset" (emits no block), and the
+// distinction is no longer load-bearing in the public API.
 func NewMulti(ids []string) *Value {
 	if ids == nil {
 		ids = []string{}
