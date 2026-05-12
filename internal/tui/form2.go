@@ -498,7 +498,13 @@ func (sf *ScopeForm) Picks() registry.Picks {
 	}
 
 	for key, v := range sf.singles {
-		if v == nil || *v == "" {
+		// huh v2 Select.Value pre-fills the bound *string with the
+		// first option's id at construction time, so after Run() the
+		// single-pick binding is always non-empty by huh's contract.
+		// We still guard nil for defensive construction (a future
+		// caller that hand-builds a ScopeForm without going through
+		// BuildScopeForm could leave a key map-present-but-nil).
+		if v == nil {
 			continue
 		}
 		picks.Values[key] = registry.NewSingle(*v)

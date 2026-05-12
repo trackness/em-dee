@@ -2,12 +2,31 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/trackness/em-dee/internal/registry"
 )
+
+// nnPrefixPattern matches the `NN-` folder-prefix that parseIndex
+// strips when generating a category id. Detected in `show` error
+// messages so a user who paste-confuses the on-disk segment for the
+// canonical dotted id (e.g. `python.50-linter.ruff` instead of
+// `python.linter.ruff`) gets a pointed suggestion rather than a
+// generic "not found".
+var nnPrefixPattern = regexp.MustCompile(`^[0-9]{2}-`)
+
+// suggestStripped returns the NN-prefix-stripped form of seg if it
+// carries one (e.g. "50-linter" → "linter"); empty string otherwise.
+// The caller uses an empty return as "nothing useful to suggest".
+func suggestStripped(seg string) string {
+	if !nnPrefixPattern.MatchString(seg) {
+		return ""
+	}
+	return nnPrefixPattern.ReplaceAllString(seg, "")
+}
 
 // newShowCmd builds `em-dee show <ref>` for the dotted-ref grammar.
 //
@@ -108,6 +127,9 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 		return walkShowRefViaContainer(reg, cat, segs, ref)
 	}
 
+	if stripped := suggestStripped(segs[0]); stripped != "" {
+		return nil, fmt.Errorf("show %s: no category %q in registry (did you mean the NN-prefix-stripped form %q? em-dee refs use category ids, not folder names)", ref, segs[0], stripped)
+	}
 	return nil, fmt.Errorf("show %s: no category %q in registry", ref, segs[0])
 }
 
@@ -161,6 +183,9 @@ func walkShowRefInScope(reg *registry.Registry, scope []*registry.Category, segs
 		if cat.HasOption(segs[0]) {
 			return walkShowRefViaContainer(reg, cat, segs, ref)
 		}
+	}
+	if stripped := suggestStripped(segs[0]); stripped != "" {
+		return nil, fmt.Errorf("show %s: no category or container option named %q in scope (did you mean %q? em-dee refs strip the NN- folder prefix)", ref, segs[0], stripped)
 	}
 	return nil, fmt.Errorf("show %s: no category or container option named %q in scope", ref, segs[0])
 }
