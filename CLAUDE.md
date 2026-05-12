@@ -18,6 +18,8 @@ These are load-bearing. Every change in this repo is made under them.
 em-dee is a Go CLI that generates `CLAUDE.md` files for new projects
 from a curated, embedded catalog of opinionated markdown blocks.
 
+Content design rules for catalog blocks live in [`CONTENT-STYLE.md`](CONTENT-STYLE.md).
+
 ## Mechanical recipes
 
 The templates filesystem lives at `internal/registry/templates/`
