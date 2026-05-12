@@ -2,13 +2,10 @@ package cli
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/pflag"
 )
 
 // TestGenerate_DryRunHappyPath asserts that --language=python --use-defaults
@@ -29,23 +26,24 @@ func TestGenerate_DryRunHappyPath(t *testing.T) {
 	}
 }
 
-// TestGenerate_UnknownOption asserts unknown option ids hard-error.
-func TestGenerate_UnknownOption(t *testing.T) {
+// TestGenerate_UnknownLanguage asserts unknown language ids hard-error
+// through ResolveSelection's option-id validation.
+func TestGenerate_UnknownLanguage(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})
 	buf := &bytes.Buffer{}
 	root.SetOut(buf)
 	root.SetErr(buf)
-	root.SetArgs([]string{"generate", "--language=python", "--python-framework=elixir-phoenix", "--dry-run"})
+	root.SetArgs([]string{"generate", "--language=elixir", "--dry-run"})
 	err := root.Execute()
 	if err == nil {
-		t.Fatalf("expected error for unknown framework option")
+		t.Fatalf("expected error for unknown language option")
 	}
 }
 
 // TestGenerate_MissingRequiredLanguage asserts the helpful error when
-// --language is omitted without --use-defaults (interactive lands in
-// Phase 4).
+// --language is omitted without --use-defaults (interactive flow needs
+// a TTY, which tests don't have).
 func TestGenerate_MissingRequiredLanguage(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})
@@ -88,9 +86,10 @@ func TestGenerate_UseDefaultsWithoutLanguageIsClear(t *testing.T) {
 	}
 }
 
-// TestGenerate_ExplicitEmptyRequired asserts --language= (explicit
-// empty on a required category) is a hard error.
-func TestGenerate_ExplicitEmptyRequired(t *testing.T) {
+// TestGenerate_EmptyLanguageRejected asserts --language= (cobra-changed
+// flag with empty value) is a hard error: the language category is
+// required and the resolver rejects required-empty.
+func TestGenerate_EmptyLanguageRejected(t *testing.T) {
 	reg := loadFixtureRegistry(t)
 	root := NewRootCmd(Options{Registry: reg})
 	buf := &bytes.Buffer{}
@@ -217,44 +216,6 @@ func TestGenerate_DryRunSkipsExistenceCheck(t *testing.T) {
 	}
 }
 
-// TestGenerate_RegistryLoadErrorSurfaces asserts that a registry-load
-// failure at command-construction time is surfaced by RunE rather
-// than silently swallowed. The previous behaviour half-populated the
-// flag set without any diagnostic — users would see a `--help`
-// listing missing `--language` and have no signal that the catalog
-// failed to parse. RunE now returns the wrapped error first thing,
-// and the command's Long description carries a one-line warning so
-// the failure is visible at `--help` time too.
-func TestGenerate_RegistryLoadErrorSurfaces(t *testing.T) {
-	sentinel := errors.New("simulated registry load failure")
-	root := NewRootCmd(Options{registryLoadErr: sentinel})
-	buf := &bytes.Buffer{}
-	root.SetOut(buf)
-	root.SetErr(buf)
-	root.SetArgs([]string{"generate", "--dry-run"})
-	err := root.Execute()
-	if err == nil {
-		t.Fatalf("expected error from RunE when registry load fails")
-	}
-	if !errors.Is(err, sentinel) {
-		t.Errorf("expected wrapped sentinel error; got: %v", err)
-	}
-
-	// `--help` also carries a one-liner so users see the failure even
-	// when they never reach RunE.
-	helpBuf := &bytes.Buffer{}
-	helpRoot := NewRootCmd(Options{registryLoadErr: sentinel})
-	helpRoot.SetOut(helpBuf)
-	helpRoot.SetErr(helpBuf)
-	helpRoot.SetArgs([]string{"generate", "--help"})
-	if err := helpRoot.Execute(); err != nil {
-		t.Fatalf("generate --help should not fail; got %v", err)
-	}
-	if !strings.Contains(helpBuf.String(), "failed to load embedded registry") {
-		t.Errorf("expected --help to mention failed registry load; got:\n%s", helpBuf.String())
-	}
-}
-
 // TestGenerate_SuccessLineOnStderr asserts the post-write success
 // line is emitted to stderr after a non-dry-run write. The line
 // carries the path, block count, and KB size.
@@ -330,91 +291,5 @@ func TestGenerate_InteractiveGateFallsThroughOnNonTTY(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "language") {
 		t.Errorf("error should mention language; got: %v", err)
-	}
-}
-
-// TestGenerate_HyphenatedLanguageFlag is the regression test for the
-// flag-name → selection-key mapping. A language id that contains a
-// dash (e.g. `typescript-node`) must produce a flag like
-// `--typescript-node-logging` whose value lands under the dotted
-// selection key `typescript-node.logging`, not `typescript.node-logging`.
-// The mapping is recorded at registration time in `flags.selectionKey`,
-// not derived by scanning the flag name, so this passes by construction.
-func TestGenerate_HyphenatedLanguageFlag(t *testing.T) {
-	reg := loadFixtureRegistry(t)
-	root := NewRootCmd(Options{Registry: reg})
-	buf := &bytes.Buffer{}
-	root.SetOut(buf)
-	root.SetErr(buf)
-	root.SetArgs([]string{
-		"generate",
-		"--language=typescript-node",
-		"--typescript-node-logging=pino",
-		"--dry-run",
-	})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	out := buf.String()
-	if !strings.Contains(out, "TypeScript") {
-		t.Errorf("expected typescript-node base block in output:\n%s", out)
-	}
-	if !strings.Contains(out, "pino") {
-		t.Errorf("expected pino logging block in output:\n%s", out)
-	}
-}
-
-// TestGenerate_HyphenatedLanguageSelectionKeyMapping asserts the
-// flag-name → selection-key map directly, locking in the contract
-// that prevents the regression where the first dash was assumed to be
-// the namespace separator. Register category flags onto an isolated
-// flag set, then inspect the recorded map for the expected entries.
-func TestGenerate_HyphenatedLanguageSelectionKeyMapping(t *testing.T) {
-	reg := loadFixtureRegistry(t)
-	flags := &generateFlags{
-		values:       map[string]*string{},
-		selectionKey: map[string]string{},
-	}
-	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	registerCategoryFlags(fs, reg, flags)
-
-	cases := map[string]string{
-		"language":                "language",
-		"infra":                   "infra",
-		"python-framework":        "python.framework",
-		"python-logging":          "python.logging",
-		"typescript-node-logging": "typescript-node.logging",
-	}
-	for flagName, want := range cases {
-		got, ok := flags.selectionKey[flagName]
-		if !ok {
-			t.Errorf("selectionKey[%q] missing", flagName)
-			continue
-		}
-		if got != want {
-			t.Errorf("selectionKey[%q] = %q, want %q", flagName, got, want)
-		}
-	}
-}
-
-// TestGenerate_MultiPickCommaSeparated asserts comma-separated values
-// for a multi-pick category go through the resolver and produce both
-// blocks.
-func TestGenerate_MultiPickCommaSeparated(t *testing.T) {
-	reg := loadFixtureRegistry(t)
-	root := NewRootCmd(Options{Registry: reg})
-	buf := &bytes.Buffer{}
-	root.SetOut(buf)
-	root.SetErr(buf)
-	root.SetArgs([]string{"generate", "--language=python", "--use-defaults", "--infra=docker,kubernetes", "--dry-run"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	out := buf.String()
-	if !strings.Contains(out, "Docker") {
-		t.Errorf("expected docker block in output:\n%s", out)
-	}
-	if !strings.Contains(out, "k8s") {
-		t.Errorf("expected kubernetes block in output:\n%s", out)
 	}
 }

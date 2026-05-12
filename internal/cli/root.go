@@ -33,13 +33,6 @@ type Options struct {
 	updateHTTPClient *http.Client
 	updateExePath    string
 
-	// registryLoadErr is a test seam that forces resolveRegistry to
-	// surface a failure even when Registry is nil and the production
-	// loader would have succeeded with an empty result. Used only by
-	// the H2 regression test that exercises generate's behaviour when
-	// the embedded catalog can't be parsed.
-	registryLoadErr error
-
 	// updateApply is the test seam for the `em-dee update` install
 	// pipeline (Task 6.4). Production leaves it nil; the command falls
 	// back to defaultUpdater which calls selfupdate.Apply. Tests pass a
