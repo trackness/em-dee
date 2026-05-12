@@ -25,7 +25,10 @@ Content design rules for catalog blocks live in [`CONTENT-STYLE.md`](CONTENT-STY
 The templates filesystem lives at `internal/registry/templates/`
 (inside the registry package because `//go:embed` cannot escape its
 package directory). Every category folder is named `NN-<id>` with a
-two-digit numeric prefix; that prefix dictates render order.
+two-digit numeric prefix; that prefix dictates render order. Some
+categories are *containers* — their options point at subdirectories
+rather than `.md` files, and the sub-categories beneath are
+conditional on which option is picked (see CONTENT-STYLE.md §2.4).
 
 - **Add an option** to an existing category: drop
   `internal/registry/templates/<NN-cat>/<id>.md`, append one entry to
@@ -134,6 +137,41 @@ two-digit numeric prefix; that prefix dictates render order.
   --skip=publish` — local snapshot build only, never publishes. Real
   releases happen via `.github/workflows/release.yml` on a `v*` tag
   push.
+
+## CLI surface
+
+The binary's invocation surface is the contract downstream tooling and
+skills branch on. Changes to subcommand names, flag names, exit-code
+semantics, or `update --check` exit values are breaking and need a
+minor/major version bump.
+
+| Command                       | Purpose                                                                                                                                                       |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `em-dee` / `em-dee generate`  | Build a CLAUDE.md. Interactive on a TTY; non-interactive needs `--language=<id>` plus `--use-defaults` (or explicit picks via interactive on a forced TTY).   |
+| `em-dee list [--json]`        | Print the catalog tree.                                                                                                                                       |
+| `em-dee show <ref>`           | Print one block's `.md` content. Refs are dotted (`python.cli.framework.typer`, `infra.docker`); containers are elided.                                       |
+| `em-dee version [--json]`     | Print embedded build version, commit, and date.                                                                                                               |
+| `em-dee update [--check]`     | Self-update from GitHub Releases. `--check` exit codes: `0` up-to-date (or dev build), `1` update available, `2` error.                                       |
+
+Category selection: `--language=<id>` is the only flag that picks a
+category option. Every other category is picked through the
+interactive form (or accepted as the registry default via
+`--use-defaults`).
+
+Behaviour flags on `em-dee generate`:
+
+- `--out=<path>` (default `CLAUDE.md`) — where to write.
+- `--force` — overwrite existing file at `--out` (previous contents
+  backed up to `<out>.bak.<unix-ts>` in the same directory).
+- `--dry-run` — write rendered output to stdout instead of disk;
+  skips the existing-file check and skips the Claude review.
+- `--use-defaults` — accept the registry default for every category
+  except `--language` (still required on a non-TTY).
+- `--review` / `--no-review` — toggle the post-write Claude review
+  (default on).
+- `--review-out=<path>` — write the parsed review JSON to disk.
+- `--review-timeout=<duration>` — override the default 60s
+  subprocess deadline (Go duration syntax).
 
 ## Subagents
 
