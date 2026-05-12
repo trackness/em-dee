@@ -23,11 +23,11 @@ is the alternate for piping; scripts should pass it explicitly so
 intent survives a future consumer-pick change.
 
 - Any other `--output` value exits 1 with `INVALID_OUTPUT_MODE`.
-- Under `--output json` the agent contract from agent.md applies:
-  JSON-only on stdout, structured error envelope on stderr, no
-  prompts, no ANSI. A top-level `commands` subcommand exists for
-  introspection; humans rely on `--help` rather than its full shape,
-  so its fields are not enumerated here.
+- Under `--output json`: stdout carries a single JSON document and
+  nothing else (no ANSI, no progress, no banners). Errors render as
+  the structured envelope from cli/base.md on stderr. Prompts are
+  suppressed regardless of TTY. Output is sorted, timestamp-free
+  unless semantic, and preserves Go struct field declaration order.
 
 #### Table rendering
 
@@ -67,9 +67,9 @@ forbidden; transitive arrival via `fatih/color` is fine.
 #### Determinism
 
 Human-mode output is tested against golden text fixtures in
-`testdata/`. Sort every collection by a stable key, omit gratuitous
-timestamps, and preserve declaration order — same rule as agent.md,
-rendered for a human reader.
+`testdata/`. Sort every collection by a stable key documented in the
+command's `--help`, omit gratuitous timestamps, and preserve
+declaration order in any JSON the `--output json` fallback emits.
 
 #### What lives in cli/base.md
 
