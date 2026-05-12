@@ -112,32 +112,57 @@ func resolveShowRef(reg *registry.Registry, ref string) ([]byte, error) {
 }
 
 // walkShowRefViaContainer handles the elided-container shape: the
-// caller has identified `cat` as a top-level container whose option
-// is `segs[0]`. Two outcomes:
+// caller has identified `cat` as a container whose option is
+// `segs[0]`. The same elision shape may appear again at any nested
+// depth (a type-container's option id substituted for the container's
+// own id), so descent into the option's subtree calls
+// walkShowRefInScope rather than walkShowRef directly.
+//
+// Two outcomes:
 //
 //   - One segment total → return the option's scope base.md (same as
 //     `<container>.<opt>`); this case is unusual because callers can
 //     just write `language.python` instead.
-//   - Two or more segments → descend into the option's subtree and
-//     resolve the remainder via walkShowRef.
+//   - Two or more segments → descend into the option's subtree
+//     (segs[1:]) and resolve the remainder against that scope.
 func walkShowRefViaContainer(reg *registry.Registry, cat *registry.Category, segs []string, ref string) ([]byte, error) {
 	optID := segs[0]
 	if len(segs) == 1 {
 		return reg.OptionBlock(cat, optID)
 	}
-	subs := cat.Subcategories[optID]
-	subID := segs[1]
-	var sub *registry.Category
-	for _, s := range subs {
-		if s.ID == subID {
-			sub = s
-			break
+	return walkShowRefInScope(reg, cat.Subcategories[optID], segs[1:], ref)
+}
+
+// walkShowRefInScope resolves the remaining dotted segments against a
+// list of categories in the current scope. Disambiguation mirrors the
+// top-level rule (resolveShowRef): the next segment is first matched
+// against a category id; if no such category exists, it is treated as
+// the elided-container option id of any container category in this
+// scope.
+//
+// Returns the resolved block bytes or an error naming the segment
+// that failed to resolve.
+func walkShowRefInScope(reg *registry.Registry, scope []*registry.Category, segs []string, ref string) ([]byte, error) {
+	if len(segs) == 0 {
+		return nil, fmt.Errorf("show %s: reference is incomplete (no segment to resolve in scope)", ref)
+	}
+	// Category-id match wins.
+	for _, cat := range scope {
+		if cat.ID == segs[0] {
+			return walkShowRef(reg, cat, segs[1:], ref)
 		}
 	}
-	if sub == nil {
-		return nil, fmt.Errorf("show %s: %q has no sub-category %q", ref, optID, subID)
+	// Elided-container fallback: segs[0] is an option of some
+	// container category at this scope.
+	for _, cat := range scope {
+		if !cat.IsContainer {
+			continue
+		}
+		if cat.HasOption(segs[0]) {
+			return walkShowRefViaContainer(reg, cat, segs, ref)
+		}
 	}
-	return walkShowRef(reg, sub, segs[2:], ref)
+	return nil, fmt.Errorf("show %s: no category or container option named %q in scope", ref, segs[0])
 }
 
 // walkShowRef consumes the remaining segments against a current
@@ -185,18 +210,8 @@ func walkShowRef(reg *registry.Registry, cat *registry.Category, remaining []str
 		return reg.OptionBlock(cat, optID)
 	}
 
-	// More segments → descend into the chosen option's subtree.
-	subs := cat.Subcategories[optID]
-	subID := remaining[1]
-	var sub *registry.Category
-	for _, s := range subs {
-		if s.ID == subID {
-			sub = s
-			break
-		}
-	}
-	if sub == nil {
-		return nil, fmt.Errorf("show %s: container %q option %q has no sub-category %q", ref, cat.ID, optID, subID)
-	}
-	return walkShowRef(reg, sub, remaining[2:], ref)
+	// More segments → descend into the chosen option's subtree. Use
+	// the in-scope walker so the same category-vs-elided-container
+	// disambiguation applies recursively.
+	return walkShowRefInScope(reg, cat.Subcategories[optID], remaining[1:], ref)
 }

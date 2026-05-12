@@ -72,15 +72,19 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 }
 
 // validateCategoryTree runs validateCategory on `cat` and, when `cat`
-// is a container, recurses through every option's subtree applying
-// the same rules at every depth. Container subtree folders must
-// themselves follow the NN-name folder convention (every category
-// folder at every depth obeys section 3 of CONTENT-STYLE.md).
+// is a container, additionally enforces the container-shape rules
+// (CONTENT-STYLE.md §2.3, §2.4) before recursing through every
+// option's subtree applying the same rules at every depth. Container
+// option subtree folders must themselves follow the NN-name folder
+// convention (every category folder at every depth obeys section 3 of
+// CONTENT-STYLE.md).
 func validateCategoryTree(cat *Category, fsys fs.FS) []error {
 	errs := validateCategory(cat, fsys)
+	errs = append(errs, validateShape(cat, fsys)...)
 	if !cat.IsContainer {
 		return errs
 	}
+	errs = append(errs, validateContainer(cat, fsys)...)
 	for _, opt := range cat.Options {
 		// The container's subtree lives at <cat.Path>/<opt.ID>. Its
 		// direct children must be NN-prefixed category folders (or,
@@ -94,6 +98,90 @@ func validateCategoryTree(cat *Category, fsys fs.FS) []error {
 		}
 		for _, sub := range cat.Subcategories[opt.ID] {
 			errs = append(errs, validateCategoryTree(sub, fsys)...)
+		}
+	}
+	return errs
+}
+
+// validateShape pins the mixed-shape rule (CONTENT-STYLE.md §2.4): a
+// category's options must all be leaf-shaped (`file:` is a bare
+// filename) OR all be container-shaped (`file:` is a path containing
+// `/`). The reasoning is that a category models one selection axis —
+// half-leaf, half-container makes the type-rendering branch
+// non-deterministic. The shape is fully determined by the option
+// `file:` values, so the rule is mechanical.
+//
+// Additionally, when the category is a leaf, validateShape rejects a
+// `base.md` file at the category root: per §2.7, `base.md` is only
+// licensed at language- and type-scope positions, never inside a
+// category folder.
+func validateShape(cat *Category, fsys fs.FS) []error {
+	var errs []error
+
+	if len(cat.Options) >= 2 {
+		hasLeaf := false
+		hasContainer := false
+		for _, opt := range cat.Options {
+			if strings.Contains(opt.File, "/") {
+				hasContainer = true
+			} else if opt.File != "" {
+				hasLeaf = true
+			}
+		}
+		if hasLeaf && hasContainer {
+			errs = append(errs, fmt.Errorf("%s: mixed-shape category (some options point at files, others at subdirectories); a category must be all-leaf or all-container", cat.Path))
+		}
+	}
+
+	if !cat.IsContainer {
+		// Per §2.7: per-leaf-category `base.md` is not licensed.
+		baseStat, err := fs.Stat(fsys, path.Join(cat.Path, "base.md"))
+		if err == nil && !baseStat.IsDir() {
+			errs = append(errs, fmt.Errorf("%s: base.md is not licensed inside a leaf category folder (CONTENT-STYLE.md §2.7); move it to the language or type scope", cat.Path))
+		}
+	}
+
+	return errs
+}
+
+// validateContainer enforces the rules that bind container categories
+// only (CONTENT-STYLE.md §2.3, §2.4). The category-classification has
+// already happened in walkScope; here we just check the implications.
+//
+//   - `pick` must be `single` — a container expresses a "which
+//     subtree applies" question.
+//   - Each option's `file:` is either `<opt.ID>/base.md` (when the
+//     subtree exposes a scope-level base block) or `<opt.ID>/` (when
+//     it doesn't). The first segment must equal `opt.ID` so the walk
+//     and the file reference agree on the subdirectory name.
+//   - When the `file:` is `<opt.ID>/base.md`, that file must exist
+//     (the missing-file check in validateCategory catches this).
+//   - When the `file:` is `<opt.ID>/`, no `base.md` may exist inside
+//     the subdirectory — the `file:` told the renderer there is no
+//     scope-base, and a stray base.md would never be reached.
+func validateContainer(cat *Category, fsys fs.FS) []error {
+	var errs []error
+	if cat.Pick != PickSingle {
+		errs = append(errs, fmt.Errorf("%s: container category must have pick: single, got %q", cat.Path, cat.Pick))
+	}
+	for _, opt := range cat.Options {
+		// Container option file must be `<opt.ID>/base.md` or `<opt.ID>/`.
+		wantBase := opt.ID + "/base.md"
+		wantDir := opt.ID + "/"
+		switch opt.File {
+		case wantBase, wantDir:
+			// ok
+		default:
+			errs = append(errs, fmt.Errorf("%s: container option %q: file must be %q or %q, got %q", cat.Path, opt.ID, wantBase, wantDir, opt.File))
+			continue
+		}
+		// When file: is `<opt.ID>/`, no base.md may exist in the
+		// subdirectory — the option declared "no scope-base".
+		if opt.File == wantDir {
+			baseStat, err := fs.Stat(fsys, path.Join(cat.Path, opt.ID, "base.md"))
+			if err == nil && !baseStat.IsDir() {
+				errs = append(errs, fmt.Errorf("%s: container option %q declares no scope-base (file: %s) but %s/%s/base.md exists; either reference it via file: %s or delete the file", cat.Path, opt.ID, wantDir, cat.Path, opt.ID, wantBase))
+			}
 		}
 	}
 	return errs
