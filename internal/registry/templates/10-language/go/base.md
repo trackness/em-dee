@@ -54,7 +54,11 @@ cancellable, or crosses a goroutine boundary.
 ### Concurrency
 
 Default: stdlib `context`, `sync`, `sync/atomic`, `testing/synctest`.
-Use `go.uber.org/goleak` in tests for packages that spawn goroutines.
+`testing/synctest` (stable since 1.25) handles both deterministic
+time and synthetic-bubble goroutine accounting, so a separate
+`go.uber.org/goleak` import is only needed for code paths that
+spawn goroutines outside a synctest bubble — long-lived server
+loops, daemons, anywhere `synctest.Run` doesn't enclose the work.
 
 - Every goroutine has an explicit lifecycle: a `context.Context` for
   cancellation plus a wait mechanism for shutdown. No fire-and-forget.
@@ -153,14 +157,16 @@ why it was insufficient. Commit `go.sum` alongside `go.mod`. No
 
 ### `task verify`
 
-`task verify` is the pre-commit gate. It runs, in order:
+`task verify` is the pre-commit gate. The Taskfile target runs, in
+order:
 
 ```
-go fix ./...
-gofmt -s -w .
+gofmt -l .                # fails on any unformatted file
 go vet ./...
-golangci-lint run
-go test -race ./...
+go test ./...
 ```
 
-Fix every failure before presenting a change for review.
+CI runs the same target plus a parallel `golangci-lint run` job
+keyed off `.golangci.yml`. Run `-race` locally when the change
+touches concurrency. Fix every failure before presenting a change
+for review; do not regenerate goldens to mask a real failure.

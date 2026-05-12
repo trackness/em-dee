@@ -8,12 +8,15 @@ lipgloss, and bubbletea compose against it without adapter glue.
 #### Model / Update / View
 
 - Every screen is a `tea.Model` with three methods: `Init() tea.Cmd`,
-  `Update(tea.Msg) (tea.Model, tea.Cmd)`, `View() string`.
+  `Update(tea.Msg) (tea.Model, tea.Cmd)`, `View() tea.View`.
 - `Update` is the only place state changes. Return a new model value
   plus an optional command; do not mutate fields off the Update path.
-- `View` is pure rendering. It returns a string and performs no I/O,
-  no mutation, no logging. The returned string is the complete
-  visible state for the frame.
+- `View` is pure rendering. It returns a `tea.View` struct and
+  performs no I/O, no mutation, no logging. The returned view is the
+  complete visible state for the frame.
+- Construct the view inline (`return tea.View{Content: s, AltScreen:
+  true, MouseMode: tea.MouseModeCellMotion}`) or via the helper
+  `tea.NewView(content)` when no per-view flags are needed.
 
 #### Messages and commands
 
@@ -25,12 +28,16 @@ lipgloss, and bubbletea compose against it without adapter glue.
 - Custom message types are plain structs. Name them by what happened
   (`fetchCompletedMsg`, `tickMsg`), not by what should happen next.
 
-#### Program options
+#### Program options and per-view flags
 
 - Construct with `tea.NewProgram(initialModel, opts...)`.
-- Pass `tea.WithAltScreen()` for full-screen TUIs so the user's
-  scrollback is preserved on exit.
-- Pass `tea.WithMouseCellMotion()` when the screen needs mouse input.
+- Alt-screen and mouse mode are declarative *per-view* in v2: set
+  `tea.View{AltScreen: true}` to preserve scrollback on exit, and
+  `tea.View{MouseMode: tea.MouseModeCellMotion}` (or `MouseModeAllMotion`)
+  to receive mouse messages. Toggling between frames is supported;
+  the runtime picks up the new flags on the next render.
+- Use `tea.WithContext(ctx)` to thread the parent context into the
+  program loop so SIGINT / cancellation propagates uniformly.
 - Handle resize by responding to `tea.WindowSizeMsg` in `Update` and
   threading the dimensions into any lipgloss layout that needs them.
 
@@ -39,7 +46,7 @@ lipgloss, and bubbletea compose against it without adapter glue.
 - Return `m, tea.Quit` from `Update` to terminate the program.
 - Treat `Ctrl-C`, `Esc`, and `q` as user-cancel inputs. On any of
   them, return `m, tea.Quit` and have the outer caller exit with
-  status `130`, matching the TUI cancellation contract.
+  status `130`, matching `Go TUI` → Cancellation contract.
 - Never exit `0` on a user-aborted bubbletea program.
 
 #### Errors
@@ -77,4 +84,4 @@ lipgloss, and bubbletea compose against it without adapter glue.
 - `github.com/nsf/termbox-go` — superseded by the bubbletea / tcell
   stack.
 - `github.com/charmbracelet/bubbletea` — wrong namespace; see
-  `tui/base.md` for the `charm.land/v2` rationale.
+  `Go TUI` → Library stack for the `charm.land/v2` rationale.

@@ -17,16 +17,18 @@ consumer-pick change.
 
 - stdout carries a single JSON document per invocation, nothing
   else. No ANSI, no progress, no banners. Logs go to stderr.
-- Errors render as the structured envelope from cli/base.md on
-  stderr in JSON form.
+- Errors render as the structured envelope from `Go CLI` →
+  Structured errors on stderr in JSON form.
 - No prompts, ever — never block on stdin regardless of TTY.
-  Mutation gating uses `--yes` / `--dry-run` per cli/base.md.
+  Mutation gating uses `--yes` / `--dry-run` from `Go CLI` →
+  Mutation gating.
 
 #### Human mode rules
 
-- Tables: `github.com/jedib0t/go-pretty/v6/table` at style `Light`.
-  Plain aligned columns (shell-completion, key=value listings) may
-  use stdlib `text/tabwriter`. One renderer per command.
+- Tables: `github.com/jedib0t/go-pretty/v6/table` at
+  `table.StyleLight`. Plain aligned columns (shell-completion,
+  key=value listings) may use stdlib `text/tabwriter`. One renderer
+  per command.
 - TTY detection via `golang.org/x/term`; gate colour and box-drawing
   on `term.IsTerminal(int(os.Stdout.Fd()))` and suppress both when
   stdout is piped.
@@ -36,7 +38,7 @@ consumer-pick change.
   when three or more distinct colour uses arise outside go-pretty.
 - Errors render on stderr as plain text `Error: ...`; the structured
   envelope fires only under `--output json`. Prompts permitted on a
-  TTY; mutation gating still applies per cli/base.md.
+  TTY; mutation gating still applies from `Go CLI` → Mutation gating.
 
 #### Mode selection
 
@@ -48,20 +50,14 @@ values. Any other value exits 1 with `INVALID_OUTPUT_MODE`.
 #### Introspection — the `commands` subcommand
 
 A top-level `commands` subcommand emits the full command tree as
-JSON so skills discover the surface without parsing help text. The
-`CommandsOutput` shape is a versioned contract. Top-level fields:
-`name` (binary name), `commands` (array of command entries),
-`exit_codes` (map of exit code to short description), `error_codes`
-(stable `UPPER_SNAKE_CASE` codes the CLI may emit in the structured
-envelope).
+JSON. The `CommandsOutput` shape is a versioned contract. Top-level
+fields: `name`, `commands`, `exit_codes`, `error_codes` (stable
+`UPPER_SNAKE_CASE` codes).
 
-Per-command entry fields: `path` (tokens from root to this command),
-`short` (one-line description), `flags` (flag definitions),
-`human_output` (`true` when the command renders human output;
-`false` for machine-only commands like `commands` itself or
-diagnostic dumps — `--output human` on a `false` entry exits 1 with
-`HUMAN_OUTPUT_NOT_SUPPORTED`), `idempotent` (`true` when the command
-performs no state mutation regardless of inputs). Adding a field is
+Per-command fields: `path`, `short`, `flags`, `human_output` (`true`
+when the command renders human output; `false` exits 1 with
+`HUMAN_OUTPUT_NOT_SUPPORTED` on `-o human`), `idempotent` (`true`
+when the command performs no state mutation). Adding a field is
 additive (minor); renaming or removing one bumps major.
 
 #### Determinism
@@ -80,10 +76,3 @@ output — field order is part of the contract.
 - Direct import of `github.com/mattn/go-isatty` or
   `github.com/mattn/go-colorable`. Transitive arrival via
   `fatih/color` is accepted.
-
-#### What lives in cli/base.md
-
-Type-universal rules apply unchanged; do not restate them. See
-cli/base.md for: Configuration, Exit codes, Structured errors,
-Mutation gating, Signal handling, Secret redaction, Help and usage
-routing, Paging.

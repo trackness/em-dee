@@ -97,8 +97,9 @@ their generated `CLAUDE.md` rather than opt in.
 
 #### Signal handling
 
-Wire `signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)` once
-in `main` and pass the derived context everywhere.
+Wire `signal.NotifyContext(context.Background(), os.Interrupt,
+syscall.SIGTERM)` once in `main` and pass the derived context (plus
+its `cancel` function — call it on the way out) everywhere.
 
 - SIGINT propagates as `context.Canceled`; the process exits 130.
 - SIGTERM maps to the same path. A request-scoped CLI has no

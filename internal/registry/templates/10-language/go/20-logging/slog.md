@@ -3,7 +3,7 @@
 Default: stdlib `log/slog`. Structured-by-default, zero third-party
 dependency, the supported Go answer since 1.21.
 
-### Handler selection
+#### Handler selection
 
 - Construct the handler once in `main`. Never instantiate handlers at
   call sites.
@@ -16,7 +16,7 @@ dependency, the supported Go answer since 1.21.
   default; do not thread `*slog.Logger` through APIs unless a specific
   call site needs a distinct logger.
 
-### Level configuration
+#### Level configuration
 
 - Drive level from a `*slog.LevelVar` constructed in `main` and passed
   into the handler via `&slog.HandlerOptions{Level: lvlVar}`.
@@ -26,7 +26,7 @@ dependency, the supported Go answer since 1.21.
   third-party packages writing to stdlib `log` route through the slog
   default at a pinned level.
 
-### Call-site conventions
+#### Call-site conventions
 
 - Use the `Context` variants on every call inside a cancellable code
   path: `slog.InfoContext(ctx, ...)`, `slog.ErrorContext(ctx, ...)`,
@@ -43,7 +43,7 @@ dependency, the supported Go answer since 1.21.
   serialise. Pair every error log with enough identifiers to locate
   the failing record (request id, user id, resource id).
 
-### Multi-sink output
+#### Multi-sink output
 
 - Default is single-sink to `os.Stderr`. Reserve multi-sink for
   projects with a real dual-destination need (e.g. stderr for the
@@ -51,7 +51,7 @@ dependency, the supported Go answer since 1.21.
 - When justified, compose with `slog.NewMultiHandler(fileHandler,
   stderrHandler)`. Both handlers share the same `LevelVar`.
 
-### What never gets logged
+#### What never gets logged
 
 - Request bodies, full HTTP responses, full headers (especially
   `Authorization`, `Cookie`, `Set-Cookie`).
@@ -60,7 +60,7 @@ dependency, the supported Go answer since 1.21.
   accidental leaks worse, not better.
 - Log identifiers and outcomes; never the payload.
 
-### Excluded
+#### Excluded
 
 `go.uber.org/zap`, `github.com/rs/zerolog`, `github.com/sirupsen/logrus`
 — stdlib `slog` covers their value with no third-party dependency.

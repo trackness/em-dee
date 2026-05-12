@@ -11,11 +11,11 @@ support — is a breaking change and bumps the major version.
   nothing else. No ANSI, no progress bars, no banners.
 - Logs go to stderr regardless of verbosity. stdout is reserved for
   the response document.
-- Errors render as the structured envelope defined in cli/base.md,
-  emitted on stderr in JSON form.
+- Errors render as the structured envelope from `Go CLI` →
+  Structured errors, emitted on stderr in JSON form.
 - No prompts, ever — never block on stdin, even on a TTY. Mutation
-  gating uses the `--yes` / `--dry-run` mechanism pinned in
-  cli/base.md.
+  gating uses the `--yes` / `--dry-run` mechanism from `Go CLI` →
+  Mutation gating.
 
 #### Mode handling
 
@@ -71,10 +71,3 @@ A top-level `version` subcommand emits the tool version as JSON. When
 the invocation reaches a target system, the response also carries the
 observed target version. Skills branch on these to gate
 target-version-specific behaviour.
-
-#### What lives in cli/base.md
-
-The type-universal rules apply unchanged to the agent consumer; do
-not restate them. See cli/base.md for: Configuration, Exit codes,
-Structured errors, Mutation gating, Signal handling, Secret
-redaction, Help and usage routing, Paging.
