@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/trackness/em-dee/internal/registry"
 )
 
 // TestGenerate_DryRunHappyPath asserts that --language=python --use-defaults
@@ -270,6 +272,159 @@ func TestIsInteractive_NonTTYInTests(t *testing.T) {
 	t.Parallel()
 	if isInteractive() {
 		t.Error("isInteractive() = true under go test; expected false (stdin/stdout are pipes)")
+	}
+}
+
+// TestCheckRequiredTree_FlagsNestedMissingRequired pins H1: a required
+// category nested under a chosen container option is caught by the
+// recursive required-check. Pre-fix, the check walked only top-level
+// categories and silently let nested required-empty cells slip past,
+// producing a truncated CLAUDE.md.
+func TestCheckRequiredTree_FlagsNestedMissingRequired(t *testing.T) {
+	t.Parallel()
+
+	// Synthesise a registry with a container category carrying a
+	// required leaf under one of its options. Picks deliberately omits
+	// the required leaf, so checkRequiredTree must surface a clear
+	// dotted-key error.
+	requiredLeaf := &registry.Category{
+		ID:          "framework",
+		DisplayName: "Framework",
+		Pick:        registry.PickSingle,
+		Required:    true,
+		Options: []registry.Option{
+			{ID: "typer", DisplayName: "Typer", File: "typer.md"},
+		},
+	}
+	typeContainer := &registry.Category{
+		ID:          "type",
+		DisplayName: "Program type",
+		Pick:        registry.PickSingle,
+		IsContainer: true,
+		Options: []registry.Option{
+			{ID: "cli", DisplayName: "CLI", File: "cli/base.md"},
+		},
+		Subcategories: map[string][]*registry.Category{
+			"cli": {requiredLeaf},
+		},
+	}
+
+	picks := registry.NewPicks()
+	picks.Values["type"] = registry.NewSingle("cli")
+	// Note: NO picks for `cli.framework` — that's the bug we're catching.
+
+	err := checkRequiredTree(picks, typeContainer, "")
+	if err == nil {
+		t.Fatal("expected an error for missing nested required category")
+	}
+	// The error must name the nested key (cli.framework), not just the
+	// top-level container.
+	if !strings.Contains(err.Error(), "cli.framework") {
+		t.Errorf("error should reference the nested dotted key cli.framework; got: %v", err)
+	}
+}
+
+// TestCheckRequiredTree_AcceptsPopulatedSubtree asserts the happy path:
+// when every required cell at every depth has a value, the check
+// returns nil.
+func TestCheckRequiredTree_AcceptsPopulatedSubtree(t *testing.T) {
+	t.Parallel()
+
+	requiredLeaf := &registry.Category{
+		ID:          "framework",
+		DisplayName: "Framework",
+		Pick:        registry.PickSingle,
+		Required:    true,
+		Options: []registry.Option{
+			{ID: "typer", DisplayName: "Typer", File: "typer.md"},
+		},
+	}
+	typeContainer := &registry.Category{
+		ID:          "type",
+		DisplayName: "Program type",
+		Pick:        registry.PickSingle,
+		IsContainer: true,
+		Options: []registry.Option{
+			{ID: "cli", DisplayName: "CLI", File: "cli/base.md"},
+		},
+		Subcategories: map[string][]*registry.Category{
+			"cli": {requiredLeaf},
+		},
+	}
+
+	picks := registry.NewPicks()
+	picks.Values["type"] = registry.NewSingle("cli")
+	picks.Values["cli.framework"] = registry.NewSingle("typer")
+
+	if err := checkRequiredTree(picks, typeContainer, ""); err != nil {
+		t.Errorf("expected nil for fully-populated picks; got %v", err)
+	}
+}
+
+// TestCheckRequiredTree_SkipsUnchosenContainerOption asserts that a
+// required leaf under a container option that wasn't picked does NOT
+// fire — the subtree is dark when the container option isn't chosen,
+// so its required cells aren't in scope. A required container with no
+// pick is still rejected at the container itself (covered by
+// TestCheckRequiredTree_FlagsTopLevelRequiredEmpty).
+func TestCheckRequiredTree_SkipsUnchosenContainerOption(t *testing.T) {
+	t.Parallel()
+
+	requiredLeaf := &registry.Category{
+		ID:          "framework",
+		DisplayName: "Framework",
+		Pick:        registry.PickSingle,
+		Required:    true,
+		Options: []registry.Option{
+			{ID: "typer", DisplayName: "Typer", File: "typer.md"},
+		},
+	}
+	typeContainer := &registry.Category{
+		ID:          "type",
+		DisplayName: "Program type",
+		Pick:        registry.PickSingle,
+		IsContainer: true,
+		Options: []registry.Option{
+			{ID: "cli", DisplayName: "CLI", File: "cli/base.md"},
+			{ID: "library", DisplayName: "Library", File: "library/base.md"},
+		},
+		Subcategories: map[string][]*registry.Category{
+			"cli":     {requiredLeaf},
+			"library": nil,
+		},
+	}
+
+	picks := registry.NewPicks()
+	picks.Values["type"] = registry.NewSingle("library") // not cli
+
+	if err := checkRequiredTree(picks, typeContainer, ""); err != nil {
+		t.Errorf("unchosen container option's required leaves are out of scope; got: %v", err)
+	}
+}
+
+// TestCheckRequiredTree_FlagsTopLevelRequiredEmpty preserves the pre-
+// existing top-level required-empty rejection.
+func TestCheckRequiredTree_FlagsTopLevelRequiredEmpty(t *testing.T) {
+	t.Parallel()
+
+	requiredCat := &registry.Category{
+		ID:          "language",
+		DisplayName: "Language",
+		Pick:        registry.PickSingle,
+		Required:    true,
+		Options: []registry.Option{
+			{ID: "python", DisplayName: "Python", File: "python/base.md"},
+		},
+	}
+	picks := registry.NewPicks()
+	// language is required but unset.
+
+	err := checkRequiredTree(picks, requiredCat, "")
+	if err == nil {
+		t.Fatal("expected an error for missing top-level required category")
+	}
+	if !strings.Contains(err.Error(), "language") {
+		t.Errorf("error should reference the language key; got: %v", err)
 	}
 }
 

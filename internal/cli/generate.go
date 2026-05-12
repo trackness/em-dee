@@ -306,30 +306,78 @@ func runTypePhase(reg *registry.Registry, lang string, initial registry.Picks, u
 	return typeID, container.ID, true, nil
 }
 
-// finishGenerate is the shared tail of both the interactive and
-// non-interactive paths: required-category check, render, write (or
-// dry-run to stdout), success line, then the claude review.
-func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags, opts Options) error {
-	// Required-category check after defaults: a required category
-	// with no value at this point (no default, no user pick) is a
-	// hard error. ResolveSelection already rejected required-empty,
-	// so this catches the "omitted entirely" case.
-	for _, cat := range reg.Categories {
-		if !cat.Required {
-			continue
-		}
-		v, ok := picks.Values[cat.ID]
+// checkRequiredTree mirrors registry.applyDefaultsTree's container
+// descent so the required-category invariant is enforced at every
+// depth, not only at the top level. A required leaf or container with
+// no value at this point (no default, no user pick) is a hard error.
+//
+// `prefix` is the dotted Picks-key prefix in effect; an empty prefix
+// means we're at the top level. When descending into a container's
+// chosen option, the prefix gains the chosen option's id (eliding the
+// container's own id per CONTENT-STYLE.md §2.3 and matching how
+// ApplyDefaults / Render / ResolveSelection key nested cells).
+//
+// Container with no chosen option: we don't descend (no subtree is in
+// scope), but the container itself surfaces as required-empty above
+// if `required: true` and no default was filled in by ApplyDefaults.
+func checkRequiredTree(picks registry.Picks, cat *registry.Category, prefix string) error {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	if cat.Required {
+		v, ok := picks.Values[key]
 		if !ok || v == nil {
-			return fmt.Errorf("%s: required category not set and no default available", cat.ID)
+			return fmt.Errorf("%s: required category not set and no default available", key)
 		}
 		// Defensive: a non-nil pointer to an empty value can still
 		// arise for required categories if a future caller bypasses
 		// ResolveSelection.
 		if cat.Pick == registry.PickSingle && (v.Single == nil || *v.Single == "") {
-			return fmt.Errorf("%s: required category resolved to empty", cat.ID)
+			return fmt.Errorf("%s: required category resolved to empty", key)
 		}
 		if cat.Pick == registry.PickMulti && (v.Multi == nil || len(*v.Multi) == 0) {
-			return fmt.Errorf("%s: required category resolved to empty", cat.ID)
+			return fmt.Errorf("%s: required category resolved to empty", key)
+		}
+	}
+	if !cat.IsContainer {
+		return nil
+	}
+	// Container: descend into the chosen option's subtree. No chosen
+	// option (covered above for required containers; benign for
+	// optional containers) → nothing further to check.
+	v := picks.Values[key]
+	if v == nil || v.Single == nil || *v.Single == "" {
+		return nil
+	}
+	chosen := *v.Single
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		if err := checkRequiredTree(picks, sub, childPrefix); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// finishGenerate is the shared tail of both the interactive and
+// non-interactive paths: required-category check, render, write (or
+// dry-run to stdout), success line, then the claude review.
+func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.Picks, flags *generateFlags, opts Options) error {
+	// Required-category check after defaults. Walks containers
+	// recursively so a required-no-default category nested under a
+	// chosen container option (e.g. a required leaf inside
+	// `python/10-type/cli/`) is also caught — otherwise the
+	// `--use-defaults` path would silently emit a truncated file.
+	// ResolveSelection already rejected required-empty at the keys it
+	// was given; this catches the "never appeared in the map" case at
+	// every depth.
+	for _, cat := range reg.Categories {
+		if err := checkRequiredTree(picks, cat, ""); err != nil {
+			return err
 		}
 	}
 
