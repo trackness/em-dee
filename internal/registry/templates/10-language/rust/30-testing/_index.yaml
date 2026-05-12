@@ -1,9 +1,0 @@
-display_name: "Rust testing"
-pick: single
-required: false
-default: cargo-test
-options:
-  - id: cargo-test
-    display_name: "cargo test (built-in)"
-    description: "Standard cargo test framework."
-    file: cargo-test.md

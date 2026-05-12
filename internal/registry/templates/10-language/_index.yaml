@@ -10,11 +10,3 @@ options:
     display_name: "Python"
     description: "Python projects."
     file: python/base.md
-  - id: typescript-node
-    display_name: "TypeScript (Node)"
-    description: "TypeScript projects targeting Node.js."
-    file: typescript-node/base.md
-  - id: rust
-    display_name: "Rust"
-    description: "Rust projects."
-    file: rust/base.md
