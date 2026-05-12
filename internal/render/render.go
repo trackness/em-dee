@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/trackness/em-dee/internal/registry"
 )
@@ -40,58 +41,102 @@ func Render(reg *registry.Registry, picks registry.Picks) ([]byte, error) {
 		return nil, fmt.Errorf("Render: nil registry")
 	}
 
-	var blocks [][]byte
-
-	for _, cat := range reg.Categories {
-		if cat.ID == registry.LanguageCategoryID {
-			langBlocks, err := renderLanguage(reg, cat, picks)
-			if err != nil {
-				return nil, err
-			}
-			blocks = append(blocks, langBlocks...)
-			continue
-		}
-		catBlocks, err := renderCategory(reg, cat, picks.Values[cat.ID])
-		if err != nil {
-			return nil, fmt.Errorf("render %s: %w", cat.ID, err)
-		}
-		blocks = append(blocks, catBlocks...)
+	blocks, err := renderScope(reg, reg.Categories, "", picks)
+	if err != nil {
+		return nil, err
 	}
-
 	return join(blocks), nil
 }
 
-// renderLanguage emits the language base.md plus each nested
-// sub-category's chosen blocks, in sub-category folder-prefix order.
-// If no language is chosen (Value nil or empty Single), nothing is
-// emitted — including no sub-category content, because the subtree
-// only makes sense once a language anchors it.
-func renderLanguage(reg *registry.Registry, langCat *registry.Category, picks registry.Picks) ([][]byte, error) {
-	v := picks.Values[registry.LanguageCategoryID]
-	if v == nil || v.Single == nil || *v.Single == "" {
-		return nil, nil
-	}
-	langID := *v.Single
-
-	// Language base block. The language category's options carry the
-	// `file: <lang>/base.md` path; reading it via OptionBlock keeps
-	// the path-joining logic in one place.
-	base, err := reg.OptionBlock(langCat, langID)
-	if err != nil {
-		return nil, fmt.Errorf("render language: %w", err)
-	}
-	out := [][]byte{base}
-
-	// Sub-categories in manifest order (the registry already sorts by
-	// folder prefix during walk).
-	for _, sub := range langCat.Subcategories[langID] {
-		key := langID + "." + sub.ID
-		subBlocks, err := renderCategory(reg, sub, picks.Values[key])
+// renderScope emits the blocks for one scope: every leaf category's
+// chosen options, plus every container category's recursive subtree.
+// `prefix` is the dotted Picks-key prefix in effect (empty at top
+// level; `<lang>` after descending into the language container;
+// `<lang>.<chosen-type>` after descending into a hypothetical type
+// container). Container traversal feeds Picks-key construction the
+// chosen *option* id rather than the container category's own id,
+// matching CONTENT-STYLE.md §2.3 — the container disappears from the
+// user-facing namespace, only the chosen option's name appears in
+// dotted refs and Picks keys.
+func renderScope(reg *registry.Registry, cats []*registry.Category, prefix string, picks registry.Picks) ([][]byte, error) {
+	var out [][]byte
+	for _, cat := range cats {
+		key := cat.ID
+		if prefix != "" {
+			key = prefix + "." + cat.ID
+		}
+		if cat.IsContainer {
+			subBlocks, err := renderContainer(reg, cat, key, prefix, picks)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, subBlocks...)
+			continue
+		}
+		catBlocks, err := renderCategory(reg, cat, picks.Values[key])
 		if err != nil {
 			return nil, fmt.Errorf("render %s: %w", key, err)
 		}
-		out = append(out, subBlocks...)
+		out = append(out, catBlocks...)
 	}
+	return out, nil
+}
+
+// renderContainer emits the chosen option's scope-`base.md` (if the
+// container's options point at base.md files), then recurses into the
+// chosen option's subtree. If no option is chosen, the entire subtree
+// is skipped — a container subtree only makes sense once its anchor
+// option is set.
+//
+// `containerKey` is the dotted Picks-key for the container itself
+// (e.g. `language` at the top level; `python.type` once the type
+// container lands). `prefix` is the prefix for the chosen option's
+// subtree — the rule is "chosen option id replaces the container's
+// id in the namespace" (per CONTENT-STYLE.md §2.3, the container is
+// elided in user-facing keys).
+func renderContainer(reg *registry.Registry, cat *registry.Category, containerKey, prefix string, picks registry.Picks) ([][]byte, error) {
+	v := picks.Values[containerKey]
+	if v == nil || v.Single == nil || *v.Single == "" {
+		return nil, nil
+	}
+	chosen := *v.Single
+
+	// Locate the chosen option to find its `file:` reference.
+	var opt *registry.Option
+	for i := range cat.Options {
+		if cat.Options[i].ID == chosen {
+			opt = &cat.Options[i]
+			break
+		}
+	}
+	if opt == nil {
+		return nil, fmt.Errorf("render %s: chosen option %q not in container category", containerKey, chosen)
+	}
+
+	var out [][]byte
+	// Scope base.md: emit only when the option's `file:` actually
+	// points at a base.md file. Container options whose `file:` is
+	// just the subdirectory (e.g. `cli/`) have no scope base block.
+	if strings.HasSuffix(opt.File, "/base.md") {
+		base, err := reg.OptionBlock(cat, chosen)
+		if err != nil {
+			return nil, fmt.Errorf("render %s: %w", containerKey, err)
+		}
+		out = append(out, base)
+	}
+
+	// Recurse into the chosen option's subtree. Namespace prefix is
+	// the parent prefix + the chosen option's id (the container's own
+	// id is elided per CONTENT-STYLE.md §2.3).
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	subBlocks, err := renderScope(reg, cat.Subcategories[chosen], childPrefix, picks)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, subBlocks...)
 	return out, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -445,28 +446,62 @@ func terminalWidth(w io.Writer) int {
 // countBlocks returns the number of block files that contributed to
 // the rendered content for `picks`. Mirrors the renderer's walk order
 // so the success line's count matches what's actually in the file.
+//
+// Walk order matches render.renderScope: each container category
+// contributes the chosen option's scope base.md (when its `file:`
+// points at a base.md) plus its subtree, recursively.
 func countBlocks(reg *registry.Registry, picks registry.Picks) int {
 	n := 0
 	for _, cat := range reg.Categories {
-		if cat.ID == registry.LanguageCategoryID {
-			v := picks.Values[registry.LanguageCategoryID]
-			if v == nil || v.Single == nil || *v.Single == "" {
-				continue
-			}
-			n++ // language base.md
-			lang := *v.Single
-			for _, sub := range cat.Subcategories[lang] {
-				n += countCategoryBlocks(sub, picks.Values[lang+"."+sub.ID])
-			}
-			continue
-		}
-		n += countCategoryBlocks(cat, picks.Values[cat.ID])
+		n += countCategoryTree(cat, picks, "")
 	}
 	return n
 }
 
-// countCategoryBlocks returns the number of block files a category
-// contributes given its picked value. Mirrors render.renderCategory.
+// countCategoryTree mirrors render.renderScope's single-category leg.
+// Leaf categories contribute their selected option(s); container
+// categories contribute the chosen option's scope base.md (when its
+// `file:` points at a base.md) plus the recursive subtree of the
+// chosen option.
+func countCategoryTree(cat *registry.Category, picks registry.Picks, prefix string) int {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	if !cat.IsContainer {
+		return countCategoryBlocks(cat, picks.Values[key])
+	}
+
+	v := picks.Values[key]
+	if v == nil || v.Single == nil || *v.Single == "" {
+		return 0
+	}
+	chosen := *v.Single
+
+	n := 0
+	for _, opt := range cat.Options {
+		if opt.ID != chosen {
+			continue
+		}
+		if strings.HasSuffix(opt.File, "/base.md") {
+			n++
+		}
+		break
+	}
+
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		n += countCategoryTree(sub, picks, childPrefix)
+	}
+	return n
+}
+
+// countCategoryBlocks returns the number of block files a leaf
+// category contributes given its picked value. Mirrors
+// render.renderCategory.
 func countCategoryBlocks(cat *registry.Category, v *registry.Value) int {
 	if v == nil {
 		return 0

@@ -15,11 +15,12 @@ func testRegistry() *Registry {
 	return &Registry{
 		Categories: []*Category{
 			{
-				Path:     "templates/10-language",
-				ID:       "language",
-				Pick:     PickSingle,
-				Required: true,
-				Options:  []Option{{ID: "python"}, {ID: "go"}},
+				Path:        "templates/10-language",
+				ID:          "language",
+				Pick:        PickSingle,
+				Required:    true,
+				IsContainer: true,
+				Options:     []Option{{ID: "python"}, {ID: "go"}},
 				Subcategories: map[string][]*Category{
 					"python": {
 						{

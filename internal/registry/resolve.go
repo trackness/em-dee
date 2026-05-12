@@ -63,21 +63,52 @@ func ResolveSelection(reg *Registry, m map[string]any) (Picks, error) {
 }
 
 // buildKeyIndex flattens the registry into a `key → *Category` map.
-// Top-level categories use their plain ID; language sub-categories
-// use `<lang-id>.<sub-id>`.
+// Top-level categories use their plain ID; container subtrees key
+// recursively as `<prefix>.<sub-cat-id>` where `<prefix>` is the
+// chosen container option's id, joined dot-style for every level of
+// container nesting (per CONTENT-STYLE.md §2.3 the container's own
+// id is elided, only the chosen option contributes to the namespace).
+//
+// Concrete shape at v1 (two-level):
+//
+//	language          → top-level container
+//	infra / ci / ...  → top-level leaves
+//	python.framework  → language opt "python", sub-cat "framework"
+//
+// After Dispatch 4 introduces three-level type-conditional categories:
+//
+//	python.type             → container nested under python
+//	python.cli.framework    → python → type(=cli) → framework
 func buildKeyIndex(reg *Registry) map[string]*Category {
 	index := map[string]*Category{}
 	for _, cat := range reg.Categories {
-		index[cat.ID] = cat
-		if cat.ID == LanguageCategoryID {
-			for langID, subs := range cat.Subcategories {
-				for _, sub := range subs {
-					index[langID+"."+sub.ID] = sub
-				}
-			}
-		}
+		indexCategoryTree(index, cat, "")
 	}
 	return index
+}
+
+// indexCategoryTree registers `cat` under `<prefix>.<cat.ID>` (or just
+// `cat.ID` at top level) and, when `cat` is a container, recurses into
+// every option's subtree with the prefix updated to include that
+// option's id.
+func indexCategoryTree(index map[string]*Category, cat *Category, prefix string) {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	index[key] = cat
+	if !cat.IsContainer {
+		return
+	}
+	for _, opt := range cat.Options {
+		childPrefix := opt.ID
+		if prefix != "" {
+			childPrefix = prefix + "." + opt.ID
+		}
+		for _, sub := range cat.Subcategories[opt.ID] {
+			indexCategoryTree(index, sub, childPrefix)
+		}
+	}
 }
 
 // resolveValue converts one input value (string | []string) into a

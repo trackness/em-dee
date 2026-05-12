@@ -118,7 +118,9 @@ func writeCategoryHuman(w io.Writer, cat *registry.Category, depth int) error {
 		if _, err := fmt.Fprintf(w, "%s  - %s%s\n", indent, opt.ID, marker); err != nil {
 			return err
 		}
-		// Language option carries nested sub-categories.
+		// Container option carries a nested subtree of further
+		// categories. Recurse so the tree view renders the full
+		// catalog at any depth.
 		if subs, ok := cat.Subcategories[opt.ID]; ok {
 			// Stable order: registry walk already sorts by folder
 			// prefix, so subs is already in render order. Defensive

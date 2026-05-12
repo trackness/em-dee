@@ -22,40 +22,50 @@ func ApplyDefaults(picks Picks, reg *Registry) Picks {
 		out.Values[k] = cloneValue(v)
 	}
 
-	// Resolve which language has been chosen, if any. We read from
-	// the input picks (not `out`) — semantically identical in v1
-	// (the language category has no default, so the input's language
-	// value is what the output sees too). Forward-compat hazard: if a
-	// language default is ever introduced, reading from `picks` would
-	// miss the just-filled default and a downstream consumer of the
-	// language subtree wouldn't see it here. Re-read from `out` after
-	// `fillIfUnset` if that changes.
-	var chosenLang string
-	if v, ok := picks.Values[LanguageCategoryID]; ok && v != nil && v.Single != nil {
-		chosenLang = *v.Single
-	}
-
 	for _, cat := range reg.Categories {
-		switch cat.ID {
-		case LanguageCategoryID:
-			fillIfUnset(out, LanguageCategoryID, cat)
-		default:
-			fillIfUnset(out, cat.ID, cat)
-		}
-
-		// Language subtree: only fill the chosen language's
-		// subcategories. If language is unset, skip the entire
-		// subtree — defaulting framework / logging without a
-		// language to anchor them would be meaningless.
-		if cat.ID == LanguageCategoryID && chosenLang != "" {
-			for _, sub := range cat.Subcategories[chosenLang] {
-				key := chosenLang + "." + sub.ID
-				fillIfUnset(out, key, sub)
-			}
-		}
+		applyDefaultsTree(out, cat, "")
 	}
 
 	return out
+}
+
+// applyDefaultsTree fills the default for `cat` if it's unset, then
+// recurses into container subtrees: a container's chosen option
+// determines which sub-tree's defaults to apply. Containers with no
+// chosen option skip recursion (defaulting blocks anchored under an
+// un-chosen container scope would be meaningless — there is no scope).
+//
+// `prefix` is the dotted Picks-key prefix in effect; an empty prefix
+// means we're at the top level. When descending into a container's
+// chosen option, the prefix gains the chosen option's id (eliding the
+// container's own id per CONTENT-STYLE.md §2.3).
+func applyDefaultsTree(out Picks, cat *Category, prefix string) {
+	key := cat.ID
+	if prefix != "" {
+		key = prefix + "." + cat.ID
+	}
+	fillIfUnset(out, key, cat)
+	if !cat.IsContainer {
+		return
+	}
+
+	// Identify the chosen option (after defaults have been applied for
+	// the container itself). A container with no chosen option — and
+	// no default to fill — has an empty subtree's worth of defaults
+	// to apply, so we just return.
+	v, ok := out.Values[key]
+	if !ok || v == nil || v.Single == nil || *v.Single == "" {
+		return
+	}
+	chosen := *v.Single
+
+	childPrefix := chosen
+	if prefix != "" {
+		childPrefix = prefix + "." + chosen
+	}
+	for _, sub := range cat.Subcategories[chosen] {
+		applyDefaultsTree(out, sub, childPrefix)
+	}
 }
 
 // fillIfUnset writes the registry default into `out[key]` only if
