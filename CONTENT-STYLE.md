@@ -243,14 +243,22 @@ skip it until demand surfaces.
 
 ### 8.1 Conditional sub-categories per type
 
+Type-level singleton opinions — discipline that applies to every
+project of a given type with no substitute axis — live in the type's
+`base.md`, not as their own single-option sub-category. The same
+rule that pushes singletons out of language-level categories
+(section 2.5) applies one level deeper.
+
 - **`cli`:**
+  - `base.md` — type-level CLI discipline. Includes annotation-driven
+    `--yes` / `--dry-run` mutation-gating as a baked-in default
+    opinion, since every CLI inherits the same gate shape and there
+    is no real substitute axis. Projects downstream with no mutating
+    commands delete the gating prose from their generated `CLAUDE.md`
+    rather than opt in.
   - `10-framework/` — `typer` default, `click` alternate.
   - `20-consumer/` — `human`, `agent`, `mixed`. Drives the output
     contract content in the rendered block.
-  - `mutation-gating.md` — annotation-driven `--yes` / `--dry-run`
-    gate. Included as a default opinion, not opt-in. Projects
-    downstream with no mutating commands delete it from their
-    generated `CLAUDE.md` rather than opt in.
 - **`server`:**
   - `10-framework/` — `fastapi` default, `django` and `flask` as
     alternates.
