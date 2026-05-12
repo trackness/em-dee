@@ -244,15 +244,15 @@ skip it until demand surfaces.
 ### 8.1 Conditional sub-categories per type
 
 - **`cli`:**
-  - `framework/` — `typer` default, `click` alternate.
-  - `consumer/` — `human`, `agent`, `mixed`. Drives the output
+  - `10-framework/` — `typer` default, `click` alternate.
+  - `20-consumer/` — `human`, `agent`, `mixed`. Drives the output
     contract content in the rendered block.
   - `mutation-gating.md` — annotation-driven `--yes` / `--dry-run`
     gate. Included as a default opinion, not opt-in. Projects
     downstream with no mutating commands delete it from their
     generated `CLAUDE.md` rather than opt in.
 - **`server`:**
-  - `framework/` — `fastapi` default, `django` and `flask` as
+  - `10-framework/` — `fastapi` default, `django` and `flask` as
     alternates.
 - **`library`:**
   - `base.md` — PyPI publishing, semver, public-API stability rules.
@@ -260,7 +260,7 @@ skip it until demand surfaces.
 - **`iac`:**
   - `base.md` — IaC program shape: declarative graph, no main loop,
     mock pattern for tests, secrets via stack config not environment.
-  - `framework/pulumi.md` — Pulumi-specific conventions:
+  - `10-framework/pulumi.md` — Pulumi-specific conventions:
     `Config(namespace).require_secret`, `Output[T]`,
     `pulumi.runtime.set_mocks` + `MockConfig` in `conftest.py`.
     Only `pulumi` is supported at v1; `cdk` and others can land
