@@ -96,13 +96,7 @@ func FindContainerSub(reg *registry.Registry, langID string) *registry.Category 
 	if reg == nil || langID == "" {
 		return nil
 	}
-	var langCat *registry.Category
-	for _, c := range reg.Categories {
-		if c.ID == registry.LanguageCategoryID {
-			langCat = c
-			break
-		}
-	}
+	langCat := reg.FindCategory(registry.LanguageCategoryID)
 	if langCat == nil {
 		return nil
 	}
@@ -249,13 +243,7 @@ func BuildScopeForm(reg *registry.Registry, langID, typeID string, initial regis
 		return nil, errors.New("BuildScopeForm: empty langID")
 	}
 
-	var langCat *registry.Category
-	for _, c := range reg.Categories {
-		if c.ID == registry.LanguageCategoryID {
-			langCat = c
-			break
-		}
-	}
+	langCat := reg.FindCategory(registry.LanguageCategoryID)
 	if langCat == nil {
 		return nil, errors.New("BuildScopeForm: registry has no language category")
 	}
@@ -268,6 +256,26 @@ func BuildScopeForm(reg *registry.Registry, langID, typeID string, initial regis
 	}
 
 	var groups []*huh.Group
+
+	// Identify the one container category in this scope (if any) up
+	// front so the loop below doesn't have to track first/last/any.
+	// The validator enforces at-most-one container per scope, so
+	// FindContainerSub's "first match wins" is canonical and unique —
+	// recording its id here keeps BuildScopeForm and FindContainerSub
+	// behaviourally identical even if a future scope ever held a
+	// second container (it would fail to load, but the form code
+	// remains correct in isolation).
+	//
+	// Note on L3 (containerID set with empty typeID): Picks() guards
+	// on `typeID != "" && containerID != ""`, so the wrong key is
+	// never emitted. The id is recorded eagerly to mirror the
+	// FindContainerSub contract used by the CLI's runTypePhase
+	// (which detects "the container slot exists" before deciding to
+	// run phase 2 even when typeID would end up empty). Tests pin
+	// this contract via TestBuildScopeForm_ThreeLevelEmptyType.
+	if container := FindContainerSub(reg, langID); container != nil {
+		sf.containerID = container.ID
+	}
 
 	// Language sub-categories. Container subs contribute their chosen
 	// option's leaves (when typeID is set); non-container subs
@@ -282,9 +290,9 @@ func BuildScopeForm(reg *registry.Registry, langID, typeID string, initial regis
 			groups = append(groups, g)
 			continue
 		}
-		// Container sub: remember its id (form-level summary needs it)
-		// and descend into the chosen option's subtree.
-		sf.containerID = sub.ID
+		// Container sub: descend into the chosen option's subtree if
+		// typeID is set. The validator guarantees this is the same
+		// category FindContainerSub returns above (at-most-one).
 		if typeID == "" {
 			// No type picked — container's subtree is dark. The user
 			// will see only language-universal leaves + cross-cutting.
@@ -410,13 +418,7 @@ func (sf *ScopeForm) summarise(reg *registry.Registry) string {
 		parts = append(parts, "language/"+sf.langID)
 	}
 
-	var langCat *registry.Category
-	for _, c := range reg.Categories {
-		if c.ID == registry.LanguageCategoryID {
-			langCat = c
-			break
-		}
-	}
+	langCat := reg.FindCategory(registry.LanguageCategoryID)
 	if langCat != nil {
 		for _, sub := range langCat.Subcategories[sf.langID] {
 			if !sub.IsContainer {

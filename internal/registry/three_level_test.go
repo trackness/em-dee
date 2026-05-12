@@ -390,6 +390,35 @@ options:
 			},
 			wantSubs: []string{"display_name"},
 		},
+		{
+			// At-most-one container per scope: two containers under
+			// the same language are rejected. The form's type-axis is
+			// a single slot, so a second container would have one of
+			// BuildScopeForm / FindContainerSub silently pick a
+			// different category from the other. Pinning the
+			// invariant at load time keeps the helpers honest.
+			name: "second container in same scope rejected",
+			mutate: func(m fstest.MapFS) {
+				// Add a second container alongside `10-type` under python.
+				m["templates/10-language/python/20-shape/_index.yaml"] = &fstest.MapFile{Data: []byte(`display_name: "Project shape"
+pick: single
+required: false
+default: standalone
+options:
+  - id: standalone
+    display_name: "Standalone"
+    description: "Standalone"
+    file: standalone/base.md
+  - id: monorepo
+    display_name: "Monorepo"
+    description: "Monorepo"
+    file: monorepo/base.md
+`)}
+				m["templates/10-language/python/20-shape/standalone/base.md"] = &fstest.MapFile{Data: []byte("standalone base\n")}
+				m["templates/10-language/python/20-shape/monorepo/base.md"] = &fstest.MapFile{Data: []byte("monorepo base\n")}
+			},
+			wantSubs: []string{"at most one container", "type", "shape"},
+		},
 	}
 
 	for _, tc := range tests {

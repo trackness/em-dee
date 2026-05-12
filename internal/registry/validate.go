@@ -37,6 +37,13 @@ func Validate(reg *Registry, fsys fs.FS, root string) error {
 	// internal/cli/show.go's disambiguation rule for the consumer.
 	errs = append(errs, validateLanguageCategoryIDCollisions(reg)...)
 
+	// At-most-one container per top-level scope. The form's type-axis
+	// is single-slot per scope (BuildScopeForm picks one container,
+	// FindContainerSub picks one container — same single slot). A
+	// second container in the same scope would have one of the two
+	// helpers pick it inconsistently, so reject the shape at load time.
+	errs = append(errs, validateAtMostOneContainerInScope(reg.Categories, "<root>")...)
+
 	// Per-category checks. We identify the language category by its
 	// (prefix-stripped) id rather than its on-disk path so the
 	// `NN-language` folder prefix is owned by parseIndex's
@@ -98,6 +105,13 @@ func validateCategoryTree(cat *Category, fsys fs.FS) []error {
 		errs = append(errs, validateScopeIDCollisions(cat.Subcategories[opt.ID], cat.Path, opt.ID)...)
 	}
 	for _, opt := range cat.Options {
+		// At-most-one container per nested scope. Same invariant as
+		// the top-level rule, pinned per container-option subtree so
+		// e.g. a language's sub-categories can hold at most one
+		// container (the type-axis slot).
+		errs = append(errs, validateAtMostOneContainerInScope(cat.Subcategories[opt.ID], cat.Path+"."+opt.ID)...)
+	}
+	for _, opt := range cat.Options {
 		// The container's subtree lives at <cat.Path>/<opt.ID>. Its
 		// direct children must be NN-prefixed category folders (or,
 		// for the language container specifically, language-id
@@ -146,6 +160,31 @@ func validateScopeIDCollisions(scope []*Category, parentPath, parentOpt string) 
 		}
 	}
 	return errs
+}
+
+// validateAtMostOneContainerInScope pins the invariant the form layer
+// relies on: a given scope (e.g. one language's sub-categories) holds
+// at most one container category. The form's "type axis" is implicit
+// in BuildScopeForm and FindContainerSub — both helpers pick a single
+// container per scope; a second container would silently lose one
+// side of the pair (BuildScopeForm last-wins, FindContainerSub
+// first-wins). Pinning the invariant here means the divergence can't
+// matter: any registry with two containers in one scope fails to load.
+//
+// `scopeLabel` names the scope for the error message (e.g.
+// "python" for a language sub-tree, or "<root>" for the top level).
+func validateAtMostOneContainerInScope(scope []*Category, scopeLabel string) []error {
+	var containers []string
+	for _, cat := range scope {
+		if cat.IsContainer {
+			containers = append(containers, cat.ID)
+		}
+	}
+	if len(containers) <= 1 {
+		return nil
+	}
+	return []error{fmt.Errorf("scope %s: at most one container category is allowed per scope (got %d: %v); the form's type-axis is single-slot and a second container would be unreachable",
+		scopeLabel, len(containers), containers)}
 }
 
 // validateScopeFolder rejects stray `.md` files at a container
