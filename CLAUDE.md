@@ -25,7 +25,10 @@ Content design rules for catalog blocks live in [`CONTENT-STYLE.md`](CONTENT-STY
 The templates filesystem lives at `internal/registry/templates/`
 (inside the registry package because `//go:embed` cannot escape its
 package directory). Every category folder is named `NN-<id>` with a
-two-digit numeric prefix; that prefix dictates render order.
+two-digit numeric prefix; that prefix dictates render order. Some
+categories are *containers* — their options point at subdirectories
+rather than `.md` files, and the sub-categories beneath are
+conditional on which option is picked (see CONTENT-STYLE.md §2.4).
 
 - **Add an option** to an existing category: drop
   `internal/registry/templates/<NN-cat>/<id>.md`, append one entry to
@@ -41,9 +44,30 @@ two-digit numeric prefix; that prefix dictates render order.
 - **Add a new language**: `mkdir
   internal/registry/templates/10-language/<id>/`, create `<id>/base.md`,
   add the language to `internal/registry/templates/10-language/_index.yaml`
-  with `file: <id>/base.md`, add nested sub-categories using the
-  top-level-category recipe. Note: the language id must not collide
-  with any top-level category id (the validator enforces this).
+  with `file: <id>/base.md`. Add language-universal categories via the
+  top-level recipe. If the language has type-conditional content, add
+  a `10-type/` container (at most one per language scope, enforced by
+  the validator) via the next recipe. Note: the language id must not
+  collide with any top-level category id (the validator enforces
+  this). Run `task verify`.
+- **Add a type under a language**: under
+  `internal/registry/templates/10-language/<lang>/10-type/`, `mkdir
+  <type>/`. Pick one of two mutually-exclusive shapes for the type's
+  entry in `10-type/_index.yaml`; the validator rejects mixing the
+  two (the declared `file:` must match the on-disk presence or
+  absence of `base.md`):
+  - **With type-base discipline**: declare `file: <type>/base.md`
+    and create `<type>/base.md`.
+  - **Without type-base discipline**: declare `file: <type>/` (bare
+    trailing slash) and do **NOT** create `<type>/base.md`.
+  Every option in a single category must be the same shape — either
+  all leaf (`.md` files) or all container (subdirectories). Mixed
+  shapes are also rejected by the validator. Add
+  `<type>/<NN-sub-cat>/_index.yaml` for each type-conditional
+  sub-category and its `.md` option files. Run `task verify`.
+- **Add a new option to a type sub-category**: drop
+  `internal/registry/templates/10-language/<lang>/10-type/<type>/<NN-sub-cat>/<id>.md`,
+  append the entry to that folder's `_index.yaml`, run `task verify`.
 - **Reorder categories**: change the folder's `NN-` prefix. Do NOT
   edit `options` list order to reorder.
 - **Update render output for a changed template**: edit the `.md`,
@@ -89,7 +113,10 @@ two-digit numeric prefix; that prefix dictates render order.
 - **PR review** by the `trackness-agents:pr-reviewer` subagent before
   merge. Every review comment is addressed on the branch — either
   the fix is pushed, or a reasoned reply is posted explaining why
-  the suggestion is YAGNI / out-of-scope. No dismissal.
+  the suggestion is YAGNI / out-of-scope. **No dismissal, including
+  nits.** Loop until clean: after fixes land, re-dispatch the
+  reviewer; repeat until the reviewer approves without further
+  findings.
 - **Squash merge** to keep `main` history one commit per logical
   change. Feature branches preserved on origin (`--delete-branch=false`).
 - Use `gh` for GitHub-side operations (PR open, PR review, PR merge,
@@ -110,6 +137,51 @@ two-digit numeric prefix; that prefix dictates render order.
   --skip=publish` — local snapshot build only, never publishes. Real
   releases happen via `.github/workflows/release.yml` on a `v*` tag
   push.
+
+## CLI surface
+
+The binary's invocation surface is the contract downstream tooling and
+skills branch on. Changes to subcommand names, flag names, exit-code
+semantics, or `update --check` exit values are breaking and need a
+minor/major version bump.
+
+| Command                       | Purpose                                                                                                                                                       |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `em-dee` / `em-dee generate`  | Build a CLAUDE.md. Interactive on a TTY; non-interactive needs `--language=<id>` (every other category falls back to its registry default).                  |
+| `em-dee list [--json]`        | Print the catalog tree.                                                                                                                                       |
+| `em-dee show <ref>`           | Print one block's `.md` content. Refs are dotted (`python.cli.framework.typer`, `infra.docker`); containers are elided.                                       |
+| `em-dee version [--json]`     | Print embedded build version, commit, and date.                                                                                                               |
+| `em-dee update [--check]`     | Self-update from GitHub Releases. `--check` exit codes: `0` up-to-date (or dev build), `1` update available, `2` error.                                       |
+
+Category selection: `--language=<id>` is the only flag that picks a
+category option. Every other category is picked through the
+interactive form, or — when no interactive form runs — filled in
+from its registry default automatically.
+
+Behaviour flags on `em-dee generate`:
+
+- `--out=<path>` (default `CLAUDE.md`) — where to write.
+- `--force` — overwrite existing file at `--out` (previous contents
+  backed up to `<out>.bak.<unix-ts>` in the same directory).
+- `--dry-run` — write rendered output to stdout instead of disk;
+  skips the existing-file check and skips the Claude review.
+- `--use-defaults` — in the interactive flow, skip form 2 (the
+  non-language picks) and silently accept registry defaults. On the
+  non-interactive path (`--language=<id>` supplied without a TTY)
+  defaults are filled automatically; this flag is a no-op there.
+- `--review` / `--no-review` — toggle the post-write Claude review
+  (default on).
+- `--review-out=<path>` — write the parsed review JSON to disk.
+- `--review-timeout=<duration>` — override the default 60s
+  subprocess deadline (Go duration syntax).
+
+## Subagents
+
+- Every subagent dispatch uses `model: opus`. No exceptions, including
+  reviewer subagents, fix-up subagents, and content-drafting subagents.
+- The PR reviewer subagent is `trackness-agents:pr-reviewer` (see Git
+  workflow). It is the only acceptable subagent type for PR review;
+  general-purpose agents are not substituted.
 
 ## Cutting a release
 
