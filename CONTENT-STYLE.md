@@ -100,6 +100,26 @@ unsettled, so more categories are justified. Forcing symmetry across
 languages to make the tree look tidy is an anti-pattern; see
 section 11.
 
+### 2.7 `base.md` placement
+
+`base.md` carries discipline that applies universally at its
+containing scope. It is not an option a user picks; it does not
+appear in any `_index.yaml` `options:` list. The renderer emits it
+first within its scope (top of language block; top of type block)
+before any category content. Two positions are licensed:
+
+- `<lang>/base.md` — language-universal discipline. Required: the
+  validator fails when a language folder has no `base.md`.
+- `<lang>/<NN-type-container>/<type>/base.md` — type-universal
+  discipline within a language. Optional: present when the type has
+  baseline opinions that hold across every project of that type
+  (see section 8.1 and section 9 for examples).
+
+Per-category `base.md` is **not** a licensed position; categories
+hold a flat list of option `.md` files plus their `_index.yaml` and
+nothing else. The orphan-`.md` validator exempts `base.md` only at
+the licensed positions above.
+
 ## 3. Naming and validation rules
 
 These rules are enforced by the manifest hygiene validator. Violations
