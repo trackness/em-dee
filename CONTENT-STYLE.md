@@ -333,8 +333,10 @@ These are explicit prohibitions. Each fails review.
 
 - No frontmatter in `.md` files. Metadata lives in `_index.yaml`.
 - No cross-category constraint rules in code. The picker
-  soft-trusts the user. Coupling-by-validation is rejected by the
-  spec.
+  soft-trusts the user. Coupling-by-validation is the wrong shape —
+  categories are orthogonal pick-points, and validation coupling
+  smuggles cross-category dependencies back into a tree designed
+  to keep them apart.
 - No reordering by editing the `options:` list in `_index.yaml`.
   Change the folder's `NN-` prefix instead.
 - No language-specific content in cross-cutting blocks. A
