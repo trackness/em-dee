@@ -32,11 +32,13 @@ type generateFlags struct {
 	force       bool
 	dryRun      bool
 	useDefaults bool
-	// Review-related flags. `noReview` flips the default `--review=true`
-	// off. `reviewOut` is an optional path the parsed JSON (or the
-	// unstructured sentinel shape) is written to. `reviewTimeout`
-	// overrides the default subprocess deadline; empty means "use the
-	// default".
+	// Review-related flags. `review` defaults to true; `noReview`
+	// defaults to false. Either `--no-review` OR `--review=false`
+	// skips the review (both names are exposed so `--help` is
+	// self-documenting and either convention works). `reviewOut` is
+	// an optional path the parsed JSON (or the unstructured sentinel
+	// shape) is written to. `reviewTimeout` overrides the default
+	// subprocess deadline; empty means "use the default".
 	noReview      bool
 	review        bool
 	reviewOut     string
@@ -92,12 +94,14 @@ func registerGenerateFlagsAndRun(cmd *cobra.Command, opts Options) {
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "write to stdout instead of disk; skips existing-file check")
 	cmd.Flags().BoolVar(&flags.useDefaults, "use-defaults", false, "accept registry defaults for every category except --language (which must still be supplied non-interactively)")
 
-	// Review flags. `--review` defaults to true; users pass `--no-review`
-	// to skip. cobra synthesises `--no-review` from the `--review`
-	// BoolVar via the "--no-<name>" convention, but we expose both
-	// names explicitly so `--help` lists them.
-	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing")
-	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (overrides --review)")
+	// Review flags. `--review` defaults to true; `--no-review` is
+	// the explicit-off convention. Both are bound and both are read:
+	// `--review=false` and `--no-review` both skip the review (see
+	// the review-decision check in finishGenerate). Both names are
+	// registered so `--help` lists them and scripts can use whichever
+	// idiom they prefer.
+	cmd.Flags().BoolVar(&flags.review, "review", true, "run the claude review after writing (pass --review=false or --no-review to skip)")
+	cmd.Flags().BoolVar(&flags.noReview, "no-review", false, "skip the claude review (same effect as --review=false)")
 	cmd.Flags().StringVar(&flags.reviewOut, "review-out", "", "write the parsed review JSON to this path")
 	cmd.Flags().StringVar(&flags.reviewTimeout, "review-timeout", "", "override the review subprocess deadline (Go duration, default 60s)")
 
@@ -418,9 +422,12 @@ func finishGenerate(cmd *cobra.Command, reg *registry.Registry, picks registry.P
 	blocks := countBlocks(reg, picks)
 	fmt.Fprintln(cmd.ErrOrStderr(), tui.SuccessLine(flags.out, blocks, len(content)))
 
-	// Review. --no-review wins over --review (which is on by default),
-	// so any --no-review short-circuits.
-	if flags.noReview {
+	// Review. Either --no-review (true) OR --review=false skips. The
+	// `--review` flag defaults to true, so the un-set form passes
+	// straight through to runReview as before; the explicit-off form
+	// (`--review=false`) is now honoured, matching the previously-
+	// silent flag binding to user-visible behaviour.
+	if flags.noReview || !flags.review {
 		return nil
 	}
 	return runReview(cmd, content, flags, opts, timeout)

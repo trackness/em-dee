@@ -73,6 +73,38 @@ func TestGenerate_NoReviewFlagSkipsReview(t *testing.T) {
 	}
 }
 
+// TestGenerate_ReviewFalseFlagSkipsReview asserts that the explicit-off
+// form `--review=false` skips the review with the same semantics as
+// `--no-review`. Pre-M3 this flag was bound but never read, so the
+// review still ran — a silent UX trap for scripts that prefer the
+// `--<name>=false` idiom.
+func TestGenerate_ReviewFalseFlagSkipsReview(t *testing.T) {
+	reg := loadFixtureRegistry(t)
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "CLAUDE.md")
+
+	invoked := 0
+	inner := &stubRunner{
+		stdout: []byte(`{"verdict":"problems","summary":"bad","issues":[]}`),
+	}
+	runnerSpy := &spyRunner{inner: inner, count: &invoked}
+
+	opts := Options{Registry: reg, reviewRunner: runnerSpy}
+	_, stderr, err := runGenerateCmd(t, opts, []string{
+		"generate", "--language=python", "--use-defaults",
+		"--out=" + out, "--review=false",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if invoked != 0 {
+		t.Errorf("review runner invoked %d times under --review=false", invoked)
+	}
+	if strings.Contains(stderr, "claude review") {
+		t.Errorf("review output leaked under --review=false:\n%s", stderr)
+	}
+}
+
 // TestGenerate_DryRunSkipsReview asserts that --dry-run does not run
 // the review (the file isn't written, so review is meaningless).
 func TestGenerate_DryRunSkipsReview(t *testing.T) {
