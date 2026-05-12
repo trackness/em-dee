@@ -1,4 +1,4 @@
-## log/slog
+### log/slog
 
 Default: stdlib `log/slog`. Structured-by-default, zero third-party
 dependency, the supported Go answer since 1.21.
