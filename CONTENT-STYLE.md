@@ -120,6 +120,46 @@ hold a flat list of option `.md` files plus their `_index.yaml` and
 nothing else. The orphan-`.md` validator exempts `base.md` only at
 the licensed positions above.
 
+### 2.8 Heading hierarchy
+
+Blocks render verbatim with `\n\n` separators; the renderer does not
+rewrite headings. Each block's heading level dictates its render
+level. The hierarchy is:
+
+- `<lang>/base.md` — `## <Language>` (h2). The language anchor.
+- Per-language category option, type-base option, and type
+  sub-category option — `### <name>` (h3). All three nest as flat
+  siblings under the language anchor.
+- Topical sub-sections inside any block — `####` (h4). Reserved for
+  dense blocks (typically `base.md` files); option blocks rarely
+  need them.
+- Cross-cutting category option — `## <name>` (h2). Sibling of the
+  language anchor.
+
+Deeper than h4 is not licensed. A type-base that wants finer
+structure inside a single topic uses prose, not h5.
+
+### 2.9 Option blocks are self-contained
+
+Categories whose picks are single-pick render exactly one option
+block per generated `CLAUDE.md`. Such blocks cannot rely on sibling
+options being present: they must carry their full contract inline.
+
+This applies to consumer-axis blocks (only the picked consumer
+renders), framework-axis blocks (only the picked framework renders),
+and any future single-pick category. Cross-references are licensed
+only to:
+
+- `base.md` files at the language scope and the containing type
+  scope — those always render alongside.
+- Cross-cutting category blocks that the project picked — those
+  render in their own slot.
+
+A block citing a sibling option by file name (`see agent.md`,
+`see kong.md`) is the wrong shape: the downstream session reading
+the rendered `CLAUDE.md` will not have that sibling to consult.
+Inline the rule or cross-ref to a `base.md`.
+
 ## 3. Naming and validation rules
 
 These rules are enforced by the manifest hygiene validator. Violations
